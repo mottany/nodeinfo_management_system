@@ -8,7 +8,7 @@
 #include <errno.h>
 #include <sys/time.h>
 
-#define TIMEOUT_SEC 10
+#define TIMEOUT_SEC 5
 #define TIMEOUT_USEC 0
 #define IS_TIMEOUT -2
 

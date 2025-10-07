@@ -27,8 +27,8 @@ int request_join_huge_cluster() {
 }
 
 int run_master_node_procedure(){
-    perror("[+]: Start master node procedure");
-    
+    fprintf(stderr, "[+]: Start master node procedure\n");
+    /*
     // ノード登録要求又はノード脱退要求の受信
     
     // ノード登録要求を受信したら
@@ -44,6 +44,8 @@ int run_master_node_procedure(){
         remove_nodedata_from_list();
     }
 
-    /*メンバノードと中継サーバの両方にnodedataを送る。*/
+    // メンバノードと中継サーバの両方にnodedataを送る。
     send_nodedata_list();
+    */
+    return 0;
 };

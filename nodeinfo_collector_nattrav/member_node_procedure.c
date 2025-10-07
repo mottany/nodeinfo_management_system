@@ -3,7 +3,7 @@
 #include "common_format.h"
 
 int request_join_cluster(struct sockaddr_in *master_node_addr) {
-    perror("[+]: Start cluster join request");
+    fprintf(stderr, "[+]: Start cluster join request\n");
 
     int broadcast_sock;
     struct sockaddr_in broadcast_addr;
@@ -46,18 +46,18 @@ int request_join_cluster(struct sockaddr_in *master_node_addr) {
         close(broadcast_sock);
         return recv_len;
     } else if (recv_len < 0 && errno == EWOULDBLOCK) {
-        perror("[-]: Timeout waiting for master node response");
+        fprintf(stderr, "[-]: Timeout waiting for master node response\n");
         close(broadcast_sock);
         return IS_TIMEOUT;
     } else {
-        perror("[-]: Error receiving response");
+        fprintf(stderr, "[-]: Error receiving response\n");
         close(broadcast_sock);
         return -1;
     }
 }
-
+/*
 int send_my_nodedata(struct sockaddr_in *master_node_addr) {
-    perror("[+]: Start sending my nodedata to master node");
+    fprintf(stderr, "[+]: Start sending my nodedata to master node\n");
     
     int sock;
     struct nodedata my_nodedata;
@@ -89,7 +89,7 @@ int send_my_nodedata(struct sockaddr_in *master_node_addr) {
 }
 
 int receive_nodedata_list(struct nodedata_list *list) {
-    perror("[+]: Start receiving nodedata list from master node");
+    fprintf(stderr, "[+]: Start receiving nodedata list from master node\n");
 
     int sock;
     struct sockaddr_in addr, sender_addr;
@@ -131,7 +131,7 @@ int receive_nodedata_list(struct nodedata_list *list) {
 }
 
 int update_nodeinfo(struct nodedata_list *list) {
-    perror("[+]: Start updating nodeinfo database");
+    fprintf(stderr, "[+]: Start updating nodeinfo database\n");
     // nodeinfoデータベースを更新する処理
     // TODO: ここの処理を実装する
     // ここでは単に受信したノード情報を表示するだけにします
@@ -144,7 +144,7 @@ int update_nodeinfo(struct nodedata_list *list) {
 }
 
 int update_hostfile(struct nodedata_list *list) {
-    perror("[+]: Start updating /etc/hosts file");
+    fprintf(stderr, "[+]: Start updating /etc/hosts file\n");
     // ホストファイルを更新する処理
     // TODO: ここの処理を実装する
     // ここでは単に受信したノード情報を表示するだけにします
@@ -160,9 +160,9 @@ int update_hostfile(struct nodedata_list *list) {
     fclose(fp);
     return 0;
 }
-
+*/
 int run_member_node_procedure(){
-    perror("[+]: Start member node procedure");
+    fprintf(stderr, "[+]: Start member node procedure\n");
     
     struct sockaddr_in master_node_addr;
 
@@ -176,7 +176,7 @@ int run_member_node_procedure(){
         printf("[+]: Received master node info: IP=%s, Port=%d\n",
                inet_ntoa(master_node_addr.sin_addr), ntohs(master_node_addr.sin_port));
     }
-
+    /*
     // マスターノードにmy_nodedataを送信
     if(send_my_nodedata(&master_node_addr) == 0){
         printf("[+]: Successfully sent my nodedata to master node\n");
@@ -194,6 +194,6 @@ int run_member_node_procedure(){
         update_nodeinfo(&received_list);
         update_hostfile(&received_list);
     }
-    
+    */
     return 0;
 }

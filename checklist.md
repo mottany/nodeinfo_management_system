@@ -1,6 +1,6 @@
 # Checklist
 
-- [ ] member_node_procedure から master_node_procedure に切り替えができる
+- [x] member_node_procedure から master_node_procedure に切り替えができる
 
 - [ ] member node は master node にクラスタ参加要求できる
 - [ ] master node は member node のクラスタ参加要求に応答できる
