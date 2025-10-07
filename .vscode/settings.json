@@ -1,0 +1,10 @@
+{
+    "cSpell.customDictionaries": {
+        "custom-dictionary-folder-nodeinfo_management_system": {
+            "name": "custom-dictionary-folder-nodeinfo_management_system",
+            "path": "${workspaceFolder:nodeinfo_management_system}/.cspell/custom-dictionary-folder-nodeinfo_management_system.txt",
+            "addWords": true,
+            "scope": "folder"
+        }
+    }
+}
