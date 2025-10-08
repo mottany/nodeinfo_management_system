@@ -1,5 +1,10 @@
-#ifndef COMMON_FORMAT_H
-#define COMMON_FORMAT_H
+#ifndef COMMON_ASSET_H
+#define COMMON_ASSET_H
+
+#include <stdint.h>
+#include <netinet/in.h>
+
+#include "sock_wrapper_functions.h"
 
 #define HELLO_CLUSTER_MSG "Hello_cluster!"
 #define WELCOME_NODE_MSG "Welcome_node!"
@@ -9,8 +14,6 @@
 #define BROADCAST_PORT 8000
 #define NODEDATA_PORT 8001
 #define NODEDATA_LIST_PORT 8002
-
-#include <stdint.h>
 
 struct nodedata {
     int ipaddress;
@@ -39,4 +42,6 @@ struct nodeinfo_database {
     struct nodeinfo_database_element elements[];
 };
 
-#endif /* COMMON_FORMAT_H */
+int receive_nodeinfo_database();
+
+#endif /* COMMON_ASSET_H */

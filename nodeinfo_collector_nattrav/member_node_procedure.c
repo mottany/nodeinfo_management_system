@@ -1,6 +1,4 @@
 #include "member_node_procedure.h"
-#include "sock_wrapper_functions.h"
-#include "common_format.h"
 
 int request_join_cluster(struct sockaddr_in *master_node_addr) {
     fprintf(stderr, "[+]: Start cluster join request\n");
@@ -184,7 +182,7 @@ int run_member_node_procedure(){
         return -1;
     }
 
-    // マスターノードからのnodedata_listを受信
+    // マスターノードからのnodedata_listとnodeinfo_databaseを受信
     while (1) {
         struct nodedata_list received_list;
         int ret = receive_nodedata_list(&received_list);
@@ -193,6 +191,7 @@ int run_member_node_procedure(){
         }
         update_nodeinfo(&received_list);
         update_hostfile(&received_list);
+        receive_nodeinfo_database();
     }
     */
     return 0;

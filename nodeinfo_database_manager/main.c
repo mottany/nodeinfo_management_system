@@ -2,6 +2,7 @@
 #include <stdint.h>
 
 #define HELLO_RELAY_SERVER_MSG "Hello_relay_server!"
+#define Welcome_CLUSTER_MSG "Welcome_cluster!"
 
 int network_id = 1;
 
@@ -32,14 +33,32 @@ struct nodeinfo_database {
     struct nodeinfo_database_element elements[];
 };
 
+int accept_join_request() {
+    // クラスタ参加要求受信
+}
+
+int assign_network_id() {
+    // ネットワークID割り当て
+}
+
+int receive_nodedata_list() {
+    // ノード情報リスト受信
+}
+
+int update_nodeinfo_database() {
+    // ノード情報データベース更新
+}
+
+int send_nodeinfo_database() {
+    // ノード情報データベース送信
+}
+
 int main(){
     fprintf(stderr, "[+]: Start nodeinfo database manager\n");
 
     while(1){
-        // クラスタ参加要求受信
         accept_join_request();
         
-        // クラスタ参加応答送信（ID付与）
         assign_network_id();
 
         receive_nodedata_list();

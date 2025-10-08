@@ -1,9 +1,7 @@
 #include "master_node_procedure.h"
-#include "sock_wrapper_functions.h"
-#include "common_format.h"
 
-int accept_join_request() {
-    // ノード登録要求受信
+int accept_request() {
+    // ノード登録/脱退要求とデータベース受け渡し要求の受諾
 }
 
 int receive_nodedata() {
@@ -26,31 +24,38 @@ int request_join_huge_cluster() {
     // 中継サーバにクラスタ参加要求
 }
 
+int send_nodeinfo_database() {
+    // メンバノードにノード情報データベース送信
+}
+
 int receive_nodeinfo_database() {
     // 中継サーバからノード情報データベース受信
 }
 
-int run_master_node_procedure(){
+int run_master_node_procedure() {
     fprintf(stderr, "[+]: Start master node procedure\n");
-    /*
+
     while(1){
-        // ノード登録要求又はノード脱退要求の受信
+        // メンバノードと中継サーバから要求メッセージを受け入れる
+        int request_code = accept_request();
         
-        // ノード登録要求を受信したら
-        if(){
-            send(); // ノード登録応答送信
+        // メンバノードからノード登録要求を受信したら
+        if(request_code == JOIN_REQUEST_CODE){
             receive_nodedata();
             add_nodedata_to_list();
+            send_nodedata_list();   // メンバノードと中継サーバの両方にnodedata_listを送る。
         }
-        // ノード脱退要求を受信したら
-        else if(){
-            send(); // ノード脱退応答送信
+        // メンバノードからノード脱退要求を受信したら
+        else if(request_code == LEAVE_REQUEST_CODE){
             receive_nodedata();
             remove_nodedata_from_list();
+            send_nodedata_list();   // メンバノードと中継サーバの両方にnodedata_listを送る。
         }
-        // メンバノードと中継サーバの両方にnodedataを送る。
-        send_nodedata_list();
+        // 中継サーバから「データベースを受け取れ」要求を受信したら
+        else if(request_code == READY_DB_CODE){
+            receive_nodeinfo_database();            
+        }
     }
-    */
+    
     return 0;
 };
