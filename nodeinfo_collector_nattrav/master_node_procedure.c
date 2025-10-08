@@ -26,26 +26,31 @@ int request_join_huge_cluster() {
     // 中継サーバにクラスタ参加要求
 }
 
+int receive_nodeinfo_database() {
+    // 中継サーバからノード情報データベース受信
+}
+
 int run_master_node_procedure(){
     fprintf(stderr, "[+]: Start master node procedure\n");
     /*
-    // ノード登録要求又はノード脱退要求の受信
-    
-    // ノード登録要求を受信したら
-    if(){
-        send(); // ノード登録応答送信
-        receive_nodedata();
-        add_nodedata_to_list();
+    while(1){
+        // ノード登録要求又はノード脱退要求の受信
+        
+        // ノード登録要求を受信したら
+        if(){
+            send(); // ノード登録応答送信
+            receive_nodedata();
+            add_nodedata_to_list();
+        }
+        // ノード脱退要求を受信したら
+        else if(){
+            send(); // ノード脱退応答送信
+            receive_nodedata();
+            remove_nodedata_from_list();
+        }
+        // メンバノードと中継サーバの両方にnodedataを送る。
+        send_nodedata_list();
     }
-    // ノード脱退要求を受信したら
-    else if(){
-        send(); // ノード脱退応答送信
-        receive_nodedata();
-        remove_nodedata_from_list();
-    }
-
-    // メンバノードと中継サーバの両方にnodedataを送る。
-    send_nodedata_list();
     */
     return 0;
 };

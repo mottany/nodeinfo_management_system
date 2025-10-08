@@ -33,20 +33,21 @@ struct nodeinfo_database {
 };
 
 int main(){
-    
-    // クラスタ参加要求受信
-    accept_join_request();
-    
-    // クラスタ参加応答送信（ID付与）
-    assign_network_id();
+    fprintf(stderr, "[+]: Start nodeinfo database manager\n");
 
-    receive_nodedata_list();
+    while(1){
+        // クラスタ参加要求受信
+        accept_join_request();
+        
+        // クラスタ参加応答送信（ID付与）
+        assign_network_id();
 
-    update_nodeinfo_database();
+        receive_nodedata_list();
 
-    send_nodeinfo_database();
+        update_nodeinfo_database();
 
-    close();
+        send_nodeinfo_database();
+    }
 
     return 0;
 }

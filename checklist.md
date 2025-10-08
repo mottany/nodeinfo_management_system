@@ -1,4 +1,4 @@
-# Checklist
+# チェックリスト
 
 - [x] member_node_procedure から master_node_procedure に切り替えができる
 
