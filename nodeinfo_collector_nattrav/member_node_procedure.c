@@ -4,6 +4,8 @@
 #include <netinet/in.h>
 #include <errno.h>
 #include <sys/time.h>
+#include <arpa/inet.h>
+#include <unistd.h>
 
 #include "common_asset.h"
 #include "sock_wrapper_functions.h"
@@ -34,13 +36,18 @@ int request_join_cluster(struct sockaddr_in *master_node_addr) {
     setsockopt(broadcast_sock, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
 
     // ブロードキャストアドレス設定
+    memset(&broadcast_addr, 0, sizeof(broadcast_addr));
     broadcast_addr.sin_family = AF_INET;
     broadcast_addr.sin_port = htons(broadcast_port);
     broadcast_addr.sin_addr.s_addr = htonl(INADDR_BROADCAST);
 
     // ブロードキャストメッセージ送信
-    sendto(broadcast_sock, HELLO_CLUSTER_MSG, sizeof(HELLO_CLUSTER_MSG), 0,
-           (struct sockaddr *)&broadcast_addr, sizeof(broadcast_addr));
+    if (sendto(broadcast_sock, HELLO_CLUSTER_MSG, strlen(HELLO_CLUSTER_MSG), 0,
+               (struct sockaddr *)&broadcast_addr, sizeof(broadcast_addr)) < 0) {
+        fprintf(stderr, "[-]: sendto failed: %s\n", strerror(errno));
+        close(broadcast_sock);
+        return -1;
+    }
 
     // マスターノードからの応答受信
     struct sockaddr_in master_addr;
