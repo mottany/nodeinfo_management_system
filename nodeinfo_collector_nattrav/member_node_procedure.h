@@ -1,15 +1,6 @@
 #ifndef MEMBER_NODE_PROCEDURE_H
 #define MEMBER_NODE_PROCEDURE_H
 
-#include <stdio.h>
-#include <string.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <errno.h>
-#include <sys/time.h>
-
-#include "common_asset.h"
-
 #define TIMEOUT_SEC 5
 #define TIMEOUT_USEC 0
 #define IS_TIMEOUT -2

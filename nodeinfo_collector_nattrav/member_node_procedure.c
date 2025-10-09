@@ -1,3 +1,12 @@
+#include <stdio.h>
+#include <string.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <errno.h>
+#include <sys/time.h>
+
+#include "common_asset.h"
+#include "sock_wrapper_functions.h"
 #include "member_node_procedure.h"
 
 int request_join_cluster(struct sockaddr_in *master_node_addr) {
@@ -175,8 +184,9 @@ int run_member_node_procedure(){
     } else if (recv_len == -1) {
         return -1;
     } else if (recv_len > 0) {
-        printf("[+]: Received master node info: IP=%s, Port=%d\n",
-               inet_ntoa(master_node_addr.sin_addr), ntohs(master_node_addr.sin_port));
+        fprintf(stderr, "[+]: Received master node info: %s:%d\n",
+                inet_ntoa(master_node_addr.sin_addr), ntohs(master_node_addr.sin_port));
+        fprintf(stderr, "[+]: Successfully joined the cluster\n");
     }
     /*
     // マスターノードにmy_nodedataを送信
@@ -191,6 +201,7 @@ int run_member_node_procedure(){
         struct nodedata_list received_list;
         int ret = receive_nodedata_list(&received_list);
         if (ret <= 0) {
+            fprintf(stderr, "[-]: Failed to receive nodedata list\n");
             return -1;
         }
         update_nodeinfo(&received_list);

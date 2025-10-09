@@ -1,3 +1,12 @@
+#include <stdio.h>
+#include <string.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <errno.h>
+#include <sys/time.h>
+
+#include "common_asset.h"
 #include "master_node_procedure.h"
 
 int accept_request() {

@@ -1,16 +1,6 @@
 #ifndef MASTER_NODE_PROCEDURE_H
 #define MASTER_NODE_PROCEDURE_H
 
-#include <stdio.h>
-#include <string.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <errno.h>
-#include <sys/time.h>
-
-#include "common_asset.h"
-
 #define RELAY_SERVER_IP "
 #define RELAY_SERVER_PORT 9000
 

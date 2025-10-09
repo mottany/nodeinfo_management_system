@@ -1,3 +1,7 @@
+#include <stdint.h>
+#include <netinet/in.h>
+
+#include "sock_wrapper_functions.h"
 #include "common_asset.h"
 
 int receive_nodeinfo_database() {

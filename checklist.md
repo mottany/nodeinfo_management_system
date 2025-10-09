@@ -2,8 +2,10 @@
 
 - [ ] ローカルネットワーク内の処理
   - [x] member_node_procedure から master_node_procedure に切り替えができる
-  - [ ] member node は master node にクラスタ参加要求できる
-  - [ ] master node は member node のクラスタ参加要求に応答できる
+  - [x] member node は master node にクラスタ参加要求できる
+  - [x] master node は member node の要求を受信できる
+  - [ ] master node は member node の要求に応答できる
+  - [ ] member node は master node の応答を受信できる
   - [ ] member node は master node に自身の nodedata を送信できる
   - [ ] master node は member node から nodedata を受信できる
   - [ ] master node は nodedata_list に nodedata を追加できる
