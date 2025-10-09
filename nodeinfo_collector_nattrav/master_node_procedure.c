@@ -1,7 +1,75 @@
 #include "master_node_procedure.h"
 
 int accept_request() {
-    // ノード登録/脱退要求とデータベース受け渡し要求の受諾
+    int sock;
+    struct sockaddr_in addr, client_addr;
+    socklen_t client_len = sizeof(client_addr);
+    char buf[256];
+
+    /* UDP ソケット作成 */
+    sock = wrapped_socket(AF_INET, SOCK_DGRAM, 0);
+    if (sock < 0) {
+        return -1;
+    }
+
+    /* バインド */
+    memset(&addr, 0, sizeof(addr));
+    addr.sin_family = AF_INET;
+    addr.sin_addr.s_addr = htonl(INADDR_ANY);
+    addr.sin_port = htons(CTRL_MSG_PORT);
+    if (wrapped_bind(sock, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+        close(sock);
+        return -1;
+    }
+
+    /* メッセージ受信 */
+    int r = wrapped_recvfrom(sock, buf, sizeof(buf) - 1, 0,
+                             (struct sockaddr *)&client_addr, &client_len);
+    if (r <= 0) {
+        close(sock);
+        return -1;
+    }
+    buf[r] = '\0';
+
+    /* リクエスト別処理 */
+    if (strcmp(buf, HELLO_CLUSTER_MSG) == 0) {
+        if (sendto(sock, WELCOME_NODE_MSG, strlen(WELCOME_NODE_MSG), 0,
+                   (struct sockaddr *)&client_addr, client_len) < 0) {
+            fprintf(stderr, "[-]: Failed to send welcome message: %s\n", strerror(errno));
+            close(sock);
+            return -1;
+        }
+        fprintf(stderr, "[+]: Accepted join from %s:%d\n",
+                inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
+        close(sock);
+        return JOIN_REQUEST_CODE;
+    } else if (strcmp(buf, BYE_CLUSTER_MSG) == 0) {
+        if (sendto(sock, BYE_NODE_MSG, strlen(BYE_NODE_MSG), 0,
+                   (struct sockaddr *)&client_addr, client_len) < 0) {
+            fprintf(stderr, "[-]: Failed to send bye message: %s\n", strerror(errno));
+            close(sock);
+            return -1;
+        }
+        fprintf(stderr, "[+]: Accepted leave from %s:%d\n",
+                inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
+        close(sock);
+        return LEAVE_REQUEST_CODE;
+    } else if (strcmp(buf, READY_SEND_DB_MSG) == 0) {
+        if (sendto(sock, READY_RECV_DB_MSG, strlen(READY_RECV_DB_MSG), 0,
+                   (struct sockaddr *)&client_addr, client_len) < 0) {
+            fprintf(stderr, "[-]: Failed to send ready-recv-db message: %s\n", strerror(errno));
+            close(sock);
+            return -1;
+        }
+        fprintf(stderr, "[+]: Relay server ready request from %s:%d\n",
+                inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
+        close(sock);
+        return RECV_DB_REQUEST_CODE;
+    } else {
+        fprintf(stderr, "[-]: Unknown control message: %s\n", buf);
+        close(sock);
+        return -1;
+    }
 }
 
 int receive_nodedata() {
@@ -38,7 +106,7 @@ int run_master_node_procedure() {
     while(1){
         // メンバノードと中継サーバから要求メッセージを受け入れる
         int request_code = accept_request();
-        printf("%d\n", request_code);
+        printf("Request Code: %d\n", request_code);
         /*
         // メンバノードからノード登録要求を受信したら
         if(request_code == JOIN_REQUEST_CODE){

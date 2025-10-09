@@ -10,8 +10,8 @@
 #define WELCOME_NODE_MSG "Welcome_node!"
 #define BYE_CLUSTER_MSG "Bye_cluster"
 #define BYE_NODE_MSG "Bye_node"
-#define READY_TO_SEND_DB_MSG "Ready_to_send_DB"
-#define READY_TO_RECV_DB_MSG "Ready_to_recv_DB"
+#define READY_SEND_DB_MSG "Ready_to_send_DB"
+#define READY_RECV_DB_MSG "Ready_to_recv_DB"
 
 #define CTRL_MSG_PORT 8000
 #define NODEDATA_PORT 8001

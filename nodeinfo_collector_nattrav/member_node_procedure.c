@@ -54,6 +54,10 @@ int request_join_cluster(struct sockaddr_in *master_node_addr) {
     }
 }
 /*
+int create_my_nodedata() {
+    // 自ノードのノード情報作成
+}
+
 int send_my_nodedata(struct sockaddr_in *master_node_addr) {
     fprintf(stderr, "[+]: Start sending my nodedata to master node\n");
     
