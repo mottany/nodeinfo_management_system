@@ -24,12 +24,12 @@ int request_join_huge_cluster() {
     // 中継サーバにクラスタ参加要求
 }
 
-int send_nodeinfo_database() {
-    // メンバノードにノード情報データベース送信
-}
-
 int receive_nodeinfo_database() {
     // 中継サーバからノード情報データベース受信
+}
+
+int send_nodeinfo_database() {
+    // メンバノードにノード情報データベース送信
 }
 
 int run_master_node_procedure() {
@@ -38,7 +38,8 @@ int run_master_node_procedure() {
     while(1){
         // メンバノードと中継サーバから要求メッセージを受け入れる
         int request_code = accept_request();
-        
+        printf("%d\n", request_code);
+        /*
         // メンバノードからノード登録要求を受信したら
         if(request_code == JOIN_REQUEST_CODE){
             receive_nodedata();
@@ -53,8 +54,9 @@ int run_master_node_procedure() {
         }
         // 中継サーバから「データベースを受け取れ」要求を受信したら
         else if(request_code == READY_DB_CODE){
-            receive_nodeinfo_database();            
-        }
+            receive_nodeinfo_database();
+            send_nodeinfo_database();
+        }*/
     }
     
     return 0;

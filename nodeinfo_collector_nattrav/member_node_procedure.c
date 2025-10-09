@@ -5,7 +5,7 @@ int request_join_cluster(struct sockaddr_in *master_node_addr) {
 
     int broadcast_sock;
     struct sockaddr_in broadcast_addr;
-    const int broadcast_port = BROADCAST_PORT;
+    const int broadcast_port = CTRL_MSG_PORT;
     char recv_buf[256];
 
     // ブロードキャスト用ソケット作成

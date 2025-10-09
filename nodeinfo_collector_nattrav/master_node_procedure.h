@@ -16,7 +16,7 @@
 
 #define JOIN_REQUEST_CODE 1
 #define LEAVE_REQUEST_CODE 2
-#define READY_DB_CODE 3
+#define RECV_DB_REQUEST_CODE 3
 
 int accept_request();
 int receive_nodedata();

@@ -18,7 +18,7 @@
   - [ ] master node は relay server から nodeinfo_database を受信できる
   - [ ] master node は member node に nodeinfo_database を送信できる
 
-- [ ] 脱退処理
+- [ ] ノード脱退処理
   - [ ] member node は master node に脱退要求できる
   - [ ] master node は member node からの脱退要求を受信できる
   - [ ] master node は nodedata_list から nodedata を削除できる
