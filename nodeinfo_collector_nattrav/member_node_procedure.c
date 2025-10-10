@@ -6,6 +6,10 @@
 #include <sys/time.h>
 #include <arpa/inet.h>
 #include <unistd.h>
+#include <sys/types.h>
+#include <sys/utsname.h>
+#include <netdb.h>
+#include <stdlib.h>
 
 #include "common_asset.h"
 #include "sock_wrapper_functions.h"
@@ -69,11 +73,44 @@ int request_join_cluster(struct sockaddr_in *master_node_addr) {
         return -1;
     }
 }
-/*
-int create_my_nodedata() {
-    // 自ノードのノード情報作成
-}
 
+struct nodedata create_my_nodedata() {
+    struct nodedata my_nodedata;
+    char hostname[256];
+    struct hostent *host_entry;
+
+    // ホスト名取得
+    if (gethostname(hostname, sizeof(hostname)) == -1) {
+        perror("gethostname");
+        my_nodedata.ipaddress = 0;
+        my_nodedata.userid = -1;
+        my_nodedata.cpu_core_num = -1;
+        return my_nodedata;
+    }
+    // ホスト情報取得
+    host_entry = gethostbyname(hostname);
+    if (host_entry == NULL) {
+        perror("gethostbyname");
+        my_nodedata.ipaddress = 0;
+        my_nodedata.userid = -1;
+        my_nodedata.cpu_core_num = -1;
+        return my_nodedata;
+    }
+    // IPv4アドレス取得
+    my_nodedata.ipaddress = ((struct in_addr *)host_entry->h_addr_list[0])->s_addr;
+    // ユーザID取得
+    my_nodedata.userid = getuid();
+    // CPUコア数取得
+    my_nodedata.cpu_core_num = sysconf(_SC_NPROCESSORS_ONLN);
+
+    // デバッグ表示
+    fprintf(stderr, "[+]: my_nodedata: ip=%s, uid=%d, cpu=%d\n",
+            inet_ntoa(*(struct in_addr *)&my_nodedata.ipaddress),
+            my_nodedata.userid, my_nodedata.cpu_core_num);
+
+    return my_nodedata;
+}
+/*
 int send_my_nodedata(struct sockaddr_in *master_node_addr) {
     fprintf(stderr, "[+]: Start sending my nodedata to master node\n");
     
