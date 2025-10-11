@@ -44,7 +44,7 @@ int accept_request() {
     if (strcmp(buf, HELLO_CLUSTER_MSG) == 0) {
         if (sendto(sock, WELCOME_NODE_MSG, strlen(WELCOME_NODE_MSG), 0,
                    (struct sockaddr *)&client_addr, client_len) < 0) {
-            fprintf(stderr, "[-]: Failed to send welcome message: %s\n", strerror(errno));
+            perror("[-]: Failed to send welcome message");
             close(sock);
             return -1;
         }
@@ -55,7 +55,7 @@ int accept_request() {
     } else if (strcmp(buf, BYE_CLUSTER_MSG) == 0) {
         if (sendto(sock, BYE_NODE_MSG, strlen(BYE_NODE_MSG), 0,
                    (struct sockaddr *)&client_addr, client_len) < 0) {
-            fprintf(stderr, "[-]: Failed to send bye message: %s\n", strerror(errno));
+            perror("[-]: Failed to send bye message");
             close(sock);
             return -1;
         }
@@ -66,7 +66,7 @@ int accept_request() {
     } else if (strcmp(buf, READY_SEND_DB_MSG) == 0) {
         if (sendto(sock, READY_RECV_DB_MSG, strlen(READY_RECV_DB_MSG), 0,
                    (struct sockaddr *)&client_addr, client_len) < 0) {
-            fprintf(stderr, "[-]: Failed to send ready-recv-db message: %s\n", strerror(errno));
+            perror("[-]: Failed to send ready-recv-db message");
             close(sock);
             return -1;
         }
@@ -115,7 +115,6 @@ int run_master_node_procedure() {
     while(1){
         // メンバノードと中継サーバから要求メッセージを受け入れる
         int request_code = accept_request();
-        printf("Request Code: %d\n", request_code);
         /*
         // メンバノードからノード登録要求を受信したら
         if(request_code == JOIN_REQUEST_CODE){

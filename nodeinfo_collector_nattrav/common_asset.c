@@ -1,4 +1,3 @@
-#include <stdint.h>
 #include <netinet/in.h>
 
 #include "sock_wrapper_functions.h"

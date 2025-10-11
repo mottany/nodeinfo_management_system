@@ -48,7 +48,7 @@ int request_join_cluster(struct sockaddr_in *master_node_addr) {
     // ブロードキャストメッセージ送信
     if (sendto(broadcast_sock, HELLO_CLUSTER_MSG, strlen(HELLO_CLUSTER_MSG), 0,
                (struct sockaddr *)&broadcast_addr, sizeof(broadcast_addr)) < 0) {
-        fprintf(stderr, "[-]: sendto failed: %s\n", strerror(errno));
+        perror("[-]: sendto failed");
         close(broadcast_sock);
         return -1;
     }
@@ -74,43 +74,6 @@ int request_join_cluster(struct sockaddr_in *master_node_addr) {
     }
 }
 
-struct nodedata create_my_nodedata() {
-    struct nodedata my_nodedata;
-    char hostname[256];
-    struct hostent *host_entry;
-
-    // ホスト名取得
-    if (gethostname(hostname, sizeof(hostname)) == -1) {
-        perror("gethostname");
-        my_nodedata.ipaddress = 0;
-        my_nodedata.userid = -1;
-        my_nodedata.cpu_core_num = -1;
-        return my_nodedata;
-    }
-    // ホスト情報取得
-    host_entry = gethostbyname(hostname);
-    if (host_entry == NULL) {
-        perror("gethostbyname");
-        my_nodedata.ipaddress = 0;
-        my_nodedata.userid = -1;
-        my_nodedata.cpu_core_num = -1;
-        return my_nodedata;
-    }
-    // IPv4アドレス取得
-    my_nodedata.ipaddress = ((struct in_addr *)host_entry->h_addr_list[0])->s_addr;
-    // ユーザID取得
-    my_nodedata.userid = getuid();
-    // CPUコア数取得
-    my_nodedata.cpu_core_num = sysconf(_SC_NPROCESSORS_ONLN);
-
-    // デバッグ表示
-    fprintf(stderr, "[+]: my_nodedata: ip=%s, uid=%d, cpu=%d\n",
-            inet_ntoa(*(struct in_addr *)&my_nodedata.ipaddress),
-            my_nodedata.userid, my_nodedata.cpu_core_num);
-
-    return my_nodedata;
-}
-/*
 int send_my_nodedata(struct sockaddr_in *master_node_addr) {
     fprintf(stderr, "[+]: Start sending my nodedata to master node\n");
     
@@ -184,7 +147,7 @@ int receive_nodedata_list(struct nodedata_list *list) {
     close(sock);
     return recv_len;
 }
-
+/*
 int update_nodeinfo(struct nodedata_list *list) {
     fprintf(stderr, "[+]: Start updating nodeinfo database\n");
     // nodeinfoデータベースを更新する処理

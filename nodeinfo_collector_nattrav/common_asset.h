@@ -1,6 +1,8 @@
 #ifndef COMMON_ASSET_H
 #define COMMON_ASSET_H
 
+#include <stdint.h>
+
 #define HELLO_CLUSTER_MSG "Hello_cluster!"
 #define WELCOME_NODE_MSG "Welcome_node!"
 #define BYE_CLUSTER_MSG "Bye_cluster"
