@@ -10,14 +10,23 @@ void drive_send_my_nodedata(){
     master_node_addr.sin_port = htons(8000); // Example port
     inet_pton(AF_INET, "192.168.1.1", &master_node_addr.sin_addr); // Example IP
     if(send_my_nodedata(&master_node_addr) == 0){
-        printf("[+]: Successfully sent my nodedata to master node\n");
+        fprintf(stderr, "[+]: Successfully sent my nodedata to master node\n");
     } else {
-        printf("[-]: Failed to send my nodedata to master node\n");
+        fprintf(stderr, "[-]: Failed to send my nodedata to master node\n");
+    }
+};
+
+void drive_receive_nodedata(){
+    if(receive_nodedata() == 0){
+        fprintf(stderr, "[+]: Successfully received nodedata from member node\n");
+    } else {
+        fprintf(stderr, "[-]: Failed to receive nodedata from member node\n");
     }
 };
 
 int main() {
     drive_send_my_nodedata();
+    drive_receive_nodedata();
 
     return 0;
 }
