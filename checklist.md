@@ -6,7 +6,6 @@
   - [x] master node は member node の要求を受信できる
   - [x] master node は member node の要求に応答できる
   - [x] member node は master node の応答を受信できる
-  - [ ] member node は my_nodedataを作成できる
   - [ ] member node は master node に my_nodedata を送信できる
   - [ ] master node は member node から nodedata を受信できる
   - [ ] master node は nodedata_list に nodedata を追加できる

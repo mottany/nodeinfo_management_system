@@ -82,7 +82,59 @@ int accept_request() {
 }
 
 int receive_nodedata() {
-    // ノード情報受信
+    int listen_sock, conn_sock;
+    struct sockaddr_in addr, client_addr;
+    socklen_t client_len = sizeof(client_addr);
+    struct nodedata nd;
+    int opt = 1;
+
+    listen_sock = wrapped_socket(AF_INET, SOCK_STREAM, 0);
+    if (listen_sock < 0) {
+        return -1;
+    }
+
+    setsockopt(listen_sock, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+
+    memset(&addr, 0, sizeof(addr));
+    addr.sin_family = AF_INET;
+    addr.sin_addr.s_addr = htonl(INADDR_ANY);
+    addr.sin_port = htons(NODEDATA_PORT);
+
+    if (wrapped_bind(listen_sock, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+        close(listen_sock);
+        return -1;
+    }
+
+    if (wrapped_listen(listen_sock, 1) < 0) {
+        close(listen_sock);
+        return -1;
+    }
+
+    conn_sock = wrapped_accept(listen_sock, (struct sockaddr *)&client_addr, &client_len);
+    if (conn_sock < 0) {
+        close(listen_sock);
+        return -1;
+    }
+
+    // 構造体サイズぶんを受信（短い受信に備えてループ）
+    size_t need = sizeof(nd);
+    size_t got = 0;
+    while (got < need) {
+        int r = wrapped_recv(conn_sock, ((char *)&nd) + got, need - got, 0);
+        if (r <= 0) {
+            close(conn_sock);
+            close(listen_sock);
+            return -1;
+        }
+        got += (size_t)r;
+    }
+
+    fprintf(stderr, "[+]: Received nodedata from %s (uid=%d, cpu=%d)\n",
+            inet_ntoa(client_addr.sin_addr), nd.userid, nd.cpu_core_num);
+
+    close(conn_sock);
+    close(listen_sock);
+    return 0;
 }
 
 int add_nodedata_to_list() {
