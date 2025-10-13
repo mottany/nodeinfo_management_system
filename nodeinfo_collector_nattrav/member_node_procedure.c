@@ -80,22 +80,32 @@ int send_my_nodedata(struct sockaddr_in *master_node_addr) {
     int sock;
     struct nodedata my_nodedata;
 
-    // ソケット作成
     sock = wrapped_socket(AF_INET, SOCK_STREAM, 0);
     if (sock < 0) {
         return -1;
     }
 
-    // マスターノードに接続
-    if (wrapped_connect(sock, (struct sockaddr *)master_node_addr, sizeof(*master_node_addr)) < 0) {
+    // 接続先は master の IP + NODEDATA_PORT にする
+    struct sockaddr_in dest = *master_node_addr;
+    dest.sin_port = htons(NODEDATA_PORT);
+
+    if (wrapped_connect(sock, (struct sockaddr *)&dest, sizeof(dest)) < 0) {
         close(sock);
         return -1;
     }
 
-    // ノード情報送信
-    my_nodedata.ipaddress = master_node_addr->sin_addr.s_addr; // 自分のIPアドレス
-    my_nodedata.userid = getuid(); // ユーザID
-    my_nodedata.cpu_core_num = sysconf(_SC_NPROCESSORS_ONLN); // CPUコア数
+    // 接続済みソケットから自ノードの送信元IPを取得
+    struct sockaddr_in local_addr;
+    socklen_t local_len = sizeof(local_addr);
+    if (getsockname(sock, (struct sockaddr *)&local_addr, &local_len) == -1) {
+        perror("getsockname");
+        close(sock);
+        return -1;
+    }
+
+    my_nodedata.ipaddress = local_addr.sin_addr.s_addr;   // ネットワークバイトオーダのIPv4
+    my_nodedata.userid = getuid();
+    my_nodedata.cpu_core_num = sysconf(_SC_NPROCESSORS_ONLN);
 
     if (wrapped_send(sock, &my_nodedata, sizeof(my_nodedata), 0) < 0) {
         close(sock);
