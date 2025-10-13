@@ -10,6 +10,8 @@
 #include <sys/utsname.h>
 #include <netdb.h>
 #include <stdlib.h>
+#include <pwd.h>
+#include <ctype.h>  // 追加
 
 #include "common_asset.h"
 #include "sock_wrapper_functions.h"
@@ -74,6 +76,29 @@ int request_join_cluster(struct sockaddr_in *master_node_addr) {
     }
 }
 
+static int extract_numeric_userid(const char *name) {
+    if (!name) return -1;
+
+    const char *prefix = "u0_a";
+    const char *p = name;
+
+    if (strncmp(name, prefix, strlen(prefix)) == 0) {
+        p = name + strlen(prefix);
+    } else {
+        while (*p && !isdigit((unsigned char)*p)) p++;
+    }
+
+    long v = 0;
+    int have = 0;
+    while (*p && isdigit((unsigned char)*p)) {
+        v = v * 10 + (*p - '0');
+        have = 1;
+        p++;
+    }
+    if (!have) return -1;
+    return (int)v;
+}
+
 int send_my_nodedata(struct sockaddr_in *master_node_addr) {
     fprintf(stderr, "[+]: Start sending my nodedata to master node\n");
     
@@ -103,9 +128,23 @@ int send_my_nodedata(struct sockaddr_in *master_node_addr) {
         return -1;
     }
 
-    my_nodedata.ipaddress = local_addr.sin_addr.s_addr;   // ネットワークバイトオーダのIPv4
-    my_nodedata.userid = getuid();
-    my_nodedata.cpu_core_num = sysconf(_SC_NPROCESSORS_ONLN);
+    struct passwd *ps;
+    my_nodedata.ipaddress = local_addr.sin_addr.s_addr;   // uint32_t (network byte order)
+
+    ps = getpwuid(getuid());
+    int parsed_uid = extract_numeric_userid(ps ? ps->pw_name : NULL);
+    if (parsed_uid < 0) {
+        fprintf(stderr, "[-]: Failed to extract numeric userid from username '%s'\n",
+                (ps && ps->pw_name) ? ps->pw_name : "(null)");
+        close(sock);
+        return -1; // フォールバックせず失敗を返す
+    }
+    my_nodedata.userid = parsed_uid;
+
+    my_nodedata.cpu_core_num = (int)sysconf(_SC_NPROCESSORS_ONLN);
+
+    fprintf(stderr, "[+]: My nodedata - IP: %s, UserID: %d, CPU Cores: %d\n",
+            inet_ntoa(local_addr.sin_addr), my_nodedata.userid, my_nodedata.cpu_core_num);
 
     if (wrapped_send(sock, &my_nodedata, sizeof(my_nodedata), 0) < 0) {
         close(sock);

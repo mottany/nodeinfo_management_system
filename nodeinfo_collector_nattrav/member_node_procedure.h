@@ -6,6 +6,7 @@
 #define IS_TIMEOUT -2
 
 int request_join_cluster(struct sockaddr_in *master_node_addr);
+int extract_numeric_userid(const char *username);
 int send_my_nodedata(struct sockaddr_in *master_node_addr);
 int receive_nodedata_list(struct nodedata_list *list);
 int update_nodeinfo(struct nodedata_list *list);
