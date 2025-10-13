@@ -1,3 +1,4 @@
+#include "common.h"
 #include "member_node_procedure.h"
 #include "master_node_procedure.h"
 

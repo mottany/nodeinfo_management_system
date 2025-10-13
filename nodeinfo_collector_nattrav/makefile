@@ -3,7 +3,7 @@ CFLAGS = -std=gnu11 -Wall -Wextra -O2 -g
 LDFLAGS =
 INCLUDES = -I.
 
-SRCS = main.c member_node_procedure.c master_node_procedure.c sock_wrapper_functions.c
+SRCS = main.c member_node_procedure.c master_node_procedure.c sock_wrapper_functions.c common.c
 OBJS = $(SRCS:.c=.o)
 TARGET = nodeinfo_collector_nattrav.bin
 

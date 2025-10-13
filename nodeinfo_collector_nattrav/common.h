@@ -1,5 +1,5 @@
-#ifndef COMMON_ASSET_H
-#define COMMON_ASSET_H
+#ifndef COMMON_H
+#define COMMON_H
 
 #include <stdint.h>
 
@@ -13,6 +13,9 @@
 #define CTRL_MSG_PORT 8000
 #define NODEDATA_PORT 8001
 #define NODEDATA_LIST_PORT 8002
+#define NODEINFO_DB_PORT 8003
+
+#define IS_TIMEOUT (-2)
 
 struct nodedata {
     uint32_t ipaddress;
@@ -45,4 +48,4 @@ int update_nodeinfo();
 int update_hostfile();
 int receive_nodeinfo_database();
 
-#endif /* COMMON_ASSET_H */
+#endif /* COMMON_H */

@@ -1,7 +1,7 @@
 #include <netinet/in.h>
 
 #include "sock_wrapper_functions.h"
-#include "common_asset.h"
+#include "common.h"
 
 int update_nodeinfo(struct nodedata_list *list) {
     fprintf(stderr, "[+]: Start updating nodeinfo database\n");

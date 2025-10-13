@@ -13,9 +13,12 @@
 #include <pwd.h>
 #include <ctype.h>  // 追加
 
-#include "common_asset.h"
+#include "common.h"
 #include "sock_wrapper_functions.h"
 #include "member_node_procedure.h"
+
+static const int RECV_TIMEOUT_SEC = 2;
+static const int RECV_TIMEOUT_USEC = 0;
 
 static int request_join_cluster(struct sockaddr_in *master_node_addr) {
     fprintf(stderr, "[+]: Start cluster join request\n");
@@ -35,10 +38,10 @@ static int request_join_cluster(struct sockaddr_in *master_node_addr) {
     int broadcast_enable = 1;
     setsockopt(broadcast_sock, SOL_SOCKET, SO_BROADCAST, &broadcast_enable, sizeof(broadcast_enable));
 
-    // 受信タイムアウト設定（10秒）
+    // 受信タイムアウト設定
     struct timeval timeout;
-    timeout.tv_sec = TIMEOUT_SEC;
-    timeout.tv_usec = TIMEOUT_USEC;
+    timeout.tv_sec = RECV_TIMEOUT_SEC;
+    timeout.tv_usec = RECV_TIMEOUT_USEC;
     setsockopt(broadcast_sock, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
 
     // ブロードキャストアドレス設定

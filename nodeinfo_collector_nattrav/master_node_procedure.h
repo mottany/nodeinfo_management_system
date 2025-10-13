@@ -1,13 +1,6 @@
 #ifndef MASTER_NODE_PROCEDURE_H
 #define MASTER_NODE_PROCEDURE_H
 
-#define RELAY_SERVER_IP "
-#define RELAY_SERVER_PORT 9000
-
-#define JOIN_REQUEST_CODE 1
-#define LEAVE_REQUEST_CODE 2
-#define RECV_DB_REQUEST_CODE 3
-
 int run_master_node_procedure();
 
 #endif /* MASTER_NODE_PROCEDURE_H */
