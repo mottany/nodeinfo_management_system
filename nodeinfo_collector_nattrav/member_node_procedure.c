@@ -139,8 +139,8 @@ static int send_my_nodedata(struct sockaddr_in *master_node_addr) {
     if (parsed_uid < 0) {
         fprintf(stderr, "[-]: Failed to extract numeric userid from username '%s'\n",
                 (ps && ps->pw_name) ? ps->pw_name : "(null)");
-        close(sock);
-        return -1;
+        fprintf(stderr, "[*]: Using raw UID %d instead\n", getuid());
+        parsed_uid = getuid();  // フォールバックでそのままUIDを使う
     }
     my_nodedata.userid = parsed_uid;
 

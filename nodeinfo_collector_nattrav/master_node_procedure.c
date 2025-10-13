@@ -9,14 +9,12 @@
 #include "common.h"
 #include "master_node_procedure.h"
 
-// リクエストコードはこのファイル内限定
 enum {
     JOIN_REQUEST_CODE = 1,
     LEAVE_REQUEST_CODE = 2,
     RECV_DB_REQUEST_CODE = 3
 };
 
-// リレー先はmaster専用の設定ならstaticで
 static const char *RELAY_SERVER_IP = "127.0.0.1";
 static const int  RELAY_SERVER_PORT = 9000;
 
@@ -198,7 +196,7 @@ int run_master_node_procedure() {
         else if(request_code == READY_DB_REQUEST_CODE){
             receive_nodeinfo_database();
             send_nodeinfo_database();
-            
+
         }*/
     }
     

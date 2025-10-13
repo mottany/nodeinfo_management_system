@@ -1,7 +1,7 @@
 #include <netinet/in.h>
 
-#include "sock_wrapper_functions.h"
 #include "common.h"
+#include "sock_wrapper_functions.h"
 
 int update_nodeinfo(struct nodedata_list *list) {
     fprintf(stderr, "[+]: Start updating nodeinfo database\n");
@@ -35,7 +35,7 @@ int update_hostfile(struct nodedata_list *list) {
 }
 
 int receive_nodeinfo_database() {
-    /*
+    
     fprintf(stderr, "[+]: Start receiving nodeinfo database\n");
 
     int sock;
@@ -78,5 +78,4 @@ int receive_nodeinfo_database() {
 
     close(sock);
     return recv_len;
-    */
 }
