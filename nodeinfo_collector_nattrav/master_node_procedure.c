@@ -9,7 +9,7 @@
 #include "common_asset.h"
 #include "master_node_procedure.h"
 
-int accept_request() {
+static int accept_request() {
     int sock;
     struct sockaddr_in addr, client_addr;
     socklen_t client_len = sizeof(client_addr);
@@ -81,7 +81,7 @@ int accept_request() {
     }
 }
 
-int receive_nodedata() {
+static int receive_nodedata() {
     fprintf(stderr, "[+]: Start receiving nodedata from member node\n");
 
     int listen_sock, conn_sock;
@@ -139,27 +139,23 @@ int receive_nodedata() {
     return 0;
 }
 
-int add_nodedata_to_list() {
+static int add_nodedata_to_list() {
     // 受信したノード情報をリストに追加
 }
 
-int remove_nodedata_from_list() {
+static int remove_nodedata_from_list() {
     // 受信したノード情報をリストから削除
 }
 
-int send_nodedata_list() {
+static int send_nodedata_list() {
     // ノード情報リスト送信
 }
 
-int request_join_huge_cluster() {
+static int request_join_huge_cluster() {
     // 中継サーバにクラスタ参加要求
 }
 
-int receive_nodeinfo_database() {
-    // 中継サーバからノード情報データベース受信
-}
-
-int send_nodeinfo_database() {
+static int send_nodeinfo_database() {
     // メンバノードにノード情報データベース送信
 }
 

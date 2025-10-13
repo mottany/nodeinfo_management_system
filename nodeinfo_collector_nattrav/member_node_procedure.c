@@ -17,7 +17,7 @@
 #include "sock_wrapper_functions.h"
 #include "member_node_procedure.h"
 
-int request_join_cluster(struct sockaddr_in *master_node_addr) {
+static int request_join_cluster(struct sockaddr_in *master_node_addr) {
     fprintf(stderr, "[+]: Start cluster join request\n");
 
     int broadcast_sock;
@@ -99,7 +99,7 @@ static int extract_numeric_userid(const char *name) {
     return (int)v;
 }
 
-int send_my_nodedata(struct sockaddr_in *master_node_addr) {
+static int send_my_nodedata(struct sockaddr_in *master_node_addr) {
     fprintf(stderr, "[+]: Start sending my nodedata to master node\n");
     
     int sock;
@@ -137,7 +137,7 @@ int send_my_nodedata(struct sockaddr_in *master_node_addr) {
         fprintf(stderr, "[-]: Failed to extract numeric userid from username '%s'\n",
                 (ps && ps->pw_name) ? ps->pw_name : "(null)");
         close(sock);
-        return -1; // フォールバックせず失敗を返す
+        return -1;
     }
     my_nodedata.userid = parsed_uid;
 
@@ -155,7 +155,7 @@ int send_my_nodedata(struct sockaddr_in *master_node_addr) {
     return 0;
 }
 
-int receive_nodedata_list(struct nodedata_list *list) {
+static int receive_nodedata_list(struct nodedata_list *list) {
     fprintf(stderr, "[+]: Start receiving nodedata list from master node\n");
 
     int sock;
@@ -196,38 +196,7 @@ int receive_nodedata_list(struct nodedata_list *list) {
     close(sock);
     return recv_len;
 }
-/*
-int update_nodeinfo(struct nodedata_list *list) {
-    fprintf(stderr, "[+]: Start updating nodeinfo database\n");
-    // nodeinfoデータベースを更新する処理
-    // TODO: ここの処理を実装する
-    // ここでは単に受信したノード情報を表示するだけにします
-    for (int i = 0; i < list->current_size; i++) {
-        struct nodedata *nd = &list->nodedatas[i];
-        printf("Node %d: IP=%d, UserID=%d, CPU Cores=%d\n",
-               i, nd->ipaddress, nd->userid, nd->cpu_core_num);
-    }
-    return 0;
-}
 
-int update_hostfile(struct nodedata_list *list) {
-    fprintf(stderr, "[+]: Start updating /etc/hosts file\n");
-    // ホストファイルを更新する処理
-    // TODO: ここの処理を実装する
-    // ここでは単に受信したノード情報を表示するだけにします
-    FILE *fp = fopen("/etc/hosts", "a");
-    if (fp == NULL) {
-        perror("fopen");
-        return -1;
-    }
-    for (int i = 0; i < list->current_size; i++) {
-        struct nodedata *nd = &list->nodedatas[i];
-        fprintf(fp, "%d\tuser%d\n", nd->ipaddress, nd->userid);
-    }
-    fclose(fp);
-    return 0;
-}
-*/
 int run_member_node_procedure(){
     fprintf(stderr, "[+]: Start member node procedure\n");
     

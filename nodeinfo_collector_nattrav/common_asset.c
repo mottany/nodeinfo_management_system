@@ -3,6 +3,37 @@
 #include "sock_wrapper_functions.h"
 #include "common_asset.h"
 
+int update_nodeinfo(struct nodedata_list *list) {
+    fprintf(stderr, "[+]: Start updating nodeinfo database\n");
+    // nodeinfoデータベースを更新する処理
+    // TODO: ここの処理を実装する
+    // ここでは単に受信したノード情報を表示するだけにします
+    for (int i = 0; i < list->current_size; i++) {
+        struct nodedata *nd = &list->nodedatas[i];
+        printf("Node %d: IP=%d, UserID=%d, CPU Cores=%d\n",
+               i, nd->ipaddress, nd->userid, nd->cpu_core_num);
+    }
+    return 0;
+}
+
+int update_hostfile(struct nodedata_list *list) {
+    fprintf(stderr, "[+]: Start updating /etc/hosts file\n");
+    // ホストファイルを更新する処理
+    // TODO: ここの処理を実装する
+    // ここでは単に受信したノード情報を表示するだけにします
+    FILE *fp = fopen("/etc/hosts", "a");
+    if (fp == NULL) {
+        perror("fopen");
+        return -1;
+    }
+    for (int i = 0; i < list->current_size; i++) {
+        struct nodedata *nd = &list->nodedatas[i];
+        fprintf(fp, "%d\tuser%d\n", nd->ipaddress, nd->userid);
+    }
+    fclose(fp);
+    return 0;
+}
+
 int receive_nodeinfo_database() {
     /*
     fprintf(stderr, "[+]: Start receiving nodeinfo database\n");

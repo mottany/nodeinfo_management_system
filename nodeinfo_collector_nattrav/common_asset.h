@@ -41,6 +41,8 @@ struct nodeinfo_database {
     struct nodeinfo_database_element elements[];
 };
 
+int update_nodeinfo();
+int update_hostfile();
 int receive_nodeinfo_database();
 
 #endif /* COMMON_ASSET_H */
