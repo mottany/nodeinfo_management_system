@@ -15,7 +15,7 @@
 #define NODEDATA_LIST_PORT 8002
 
 struct nodedata {
-    int ipaddress;
+    uint32_t ipaddress;
     int userid;
     int cpu_core_num;
 };
