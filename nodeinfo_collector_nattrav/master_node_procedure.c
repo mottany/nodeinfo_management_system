@@ -131,7 +131,7 @@ int receive_nodedata() {
         got += (size_t)r;
     }
 
-    fprintf(stderr, "[+]: Received nodedata from %s (uid=%d, cpu=%d)\n",
+    fprintf(stderr, "[+]: Successfully received nodedata from %s (uid=%d, cpu=%d)\n",
             inet_ntoa(client_addr.sin_addr), nd.userid, nd.cpu_core_num);
 
     close(conn_sock);
@@ -172,7 +172,10 @@ int run_master_node_procedure() {
         
         // メンバノードからノード登録要求を受信したら
         if(request_code == JOIN_REQUEST_CODE){
-            receive_nodedata();
+            if(receive_nodedata() < 0){
+                fprintf(stderr, "[-]: Failed to receive nodedata from member node\n");
+                return -1;
+            }
             // add_nodedata_to_list();
             // send_nodedata_list();   // メンバノードと中継サーバの両方にnodedata_listを送る。
         }
