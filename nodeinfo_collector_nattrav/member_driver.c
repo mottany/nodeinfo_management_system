@@ -1,5 +1,4 @@
 #include "member_node_procedure.h"
-#include "master_node_procedure.h"
 #include "common_asset.h"
 #include <stdio.h>
 #include <arpa/inet.h>
@@ -16,17 +15,8 @@ void drive_send_my_nodedata(){
     }
 };
 
-void drive_receive_nodedata(){
-    if(receive_nodedata() == 0){
-        fprintf(stderr, "[+]: Successfully received nodedata from member node\n");
-    } else {
-        fprintf(stderr, "[-]: Failed to receive nodedata from member node\n");
-    }
-};
-
 int main() {
     drive_send_my_nodedata();
-    drive_receive_nodedata();
 
     return 0;
 }

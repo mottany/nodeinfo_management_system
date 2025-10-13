@@ -82,6 +82,8 @@ int accept_request() {
 }
 
 int receive_nodedata() {
+    fprintf(stderr, "[+]: Start receiving nodedata from member node\n");
+    
     int listen_sock, conn_sock;
     struct sockaddr_in addr, client_addr;
     socklen_t client_len = sizeof(client_addr);
