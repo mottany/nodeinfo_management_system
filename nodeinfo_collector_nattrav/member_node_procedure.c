@@ -195,14 +195,15 @@ int run_member_node_procedure(){
                 inet_ntoa(master_node_addr.sin_addr), ntohs(master_node_addr.sin_port));
         fprintf(stderr, "[+]: Successfully joined the cluster\n");
     }
-    /*
+    
     // マスターノードにmy_nodedataを送信
     if(send_my_nodedata(&master_node_addr) == 0){
-        printf("[+]: Successfully sent my nodedata to master node\n");
+        fprintf(stderr, "[+]: Successfully sent my nodedata to master node\n");
     } else {
+        fprintf(stderr, "[-]: Failed to send my nodedata to master node\n");
         return -1;
     }
-
+    /*
     // マスターノードからのnodedata_listとnodeinfo_databaseを受信
     while (1) {
         struct nodedata_list received_list;

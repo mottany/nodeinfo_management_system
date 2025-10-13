@@ -83,7 +83,7 @@ int accept_request() {
 
 int receive_nodedata() {
     fprintf(stderr, "[+]: Start receiving nodedata from member node\n");
-    
+
     int listen_sock, conn_sock;
     struct sockaddr_in addr, client_addr;
     socklen_t client_len = sizeof(client_addr);
@@ -169,21 +169,21 @@ int run_master_node_procedure() {
     while(1){
         // メンバノードと中継サーバから要求メッセージを受け入れる
         int request_code = accept_request();
-        /*
+        
         // メンバノードからノード登録要求を受信したら
         if(request_code == JOIN_REQUEST_CODE){
             receive_nodedata();
-            add_nodedata_to_list();
-            send_nodedata_list();   // メンバノードと中継サーバの両方にnodedata_listを送る。
+            // add_nodedata_to_list();
+            // send_nodedata_list();   // メンバノードと中継サーバの両方にnodedata_listを送る。
         }
         // メンバノードからノード脱退要求を受信したら
-        else if(request_code == LEAVE_REQUEST_CODE){
+        /*else if(request_code == LEAVE_REQUEST_CODE){
             receive_nodedata();
             remove_nodedata_from_list();
             send_nodedata_list();   // メンバノードと中継サーバの両方にnodedata_listを送る。
         }
         // 中継サーバから「データベースを受け取れ」要求を受信したら
-        else if(request_code == READY_DB_CODE){
+        else if(request_code == READY_DB_REQUEST_CODE){
             receive_nodeinfo_database();
             send_nodeinfo_database();
         }*/
