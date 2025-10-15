@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include "common.h"
 #include "member_node_procedure.h"
 #include "master_node_procedure.h"
@@ -11,7 +12,7 @@ int main(void){
             return -1;
         }
     } else if (rc < 0) {
-        perror("[-]: Error in node procedure");
+        fprintf(stderr, "[-]: Error in node procedure");
         return -1;
     }
     

@@ -124,7 +124,7 @@ static int send_my_nodedata(struct sockaddr_in *master_node_addr) {
 
     // 共通関数から自ノード情報取得
     my_nodedata = get_my_nodedata();
-    if (my_nodedata.ipaddress == 0 || my_nodedata.userid < 0 || my_nodedata.cpu_core_num <= 0) {
+    if (my_nodedata.ipaddress == 0 || /*my_nodedata.userid < 0 ||*/ my_nodedata.cpu_core_num <= 0) {
         fprintf(stderr, "[-]: get_my_nodedata() returned invalid data (ip=%u uid=%d cpu=%d)\n",
                 my_nodedata.ipaddress, my_nodedata.userid, my_nodedata.cpu_core_num);
         close(sock);
