@@ -106,7 +106,7 @@ static int send_my_nodedata(struct sockaddr_in *master_node_addr) {
     fprintf(stderr, "[+]: Start sending my nodedata to master node\n");
     
     int sock;
-    struct nodedata my_nodedata;
+    struct nodedata my_nodedata = {0};
 
     sock = wrapped_socket(AF_INET, SOCK_STREAM, 0);
     if (sock < 0) {
@@ -122,32 +122,23 @@ static int send_my_nodedata(struct sockaddr_in *master_node_addr) {
         return -1;
     }
 
-    // 接続済みソケットから自ノードの送信元IPを取得
-    struct sockaddr_in local_addr;
-    socklen_t local_len = sizeof(local_addr);
-    if (getsockname(sock, (struct sockaddr *)&local_addr, &local_len) == -1) {
-        perror("getsockname");
+    // 共通関数から自ノード情報取得
+    my_nodedata = get_my_nodedata();
+    if (my_nodedata.ipaddress == 0 || my_nodedata.userid < 0 || my_nodedata.cpu_core_num <= 0) {
+        fprintf(stderr, "[-]: get_my_nodedata() returned invalid data (ip=%u uid=%d cpu=%d)\n",
+                my_nodedata.ipaddress, my_nodedata.userid, my_nodedata.cpu_core_num);
         close(sock);
         return -1;
     }
 
-    struct passwd *ps;
-    my_nodedata.ipaddress = local_addr.sin_addr.s_addr;   // uint32_t (network byte order)
-
-    ps = getpwuid(getuid());
-    int parsed_uid = extract_numeric_userid(ps ? ps->pw_name : NULL);
-    if (parsed_uid < 0) {
-        fprintf(stderr, "[-]: Failed to extract numeric userid from username '%s'\n",
-                (ps && ps->pw_name) ? ps->pw_name : "(null)");
-        fprintf(stderr, "[*]: Set userid to NULL\n");
-        parsed_uid = NULL;
+    // デバッグ表示
+    {
+        char ipstr[INET_ADDRSTRLEN];
+        struct in_addr ia = { .s_addr = my_nodedata.ipaddress };
+        inet_ntop(AF_INET, &ia, ipstr, sizeof(ipstr));
+        fprintf(stderr, "[+]: My nodedata - IP: %s, UserID: %d, CPU Cores: %d\n",
+                ipstr, my_nodedata.userid, my_nodedata.cpu_core_num);
     }
-    my_nodedata.userid = parsed_uid;
-
-    my_nodedata.cpu_core_num = (int)sysconf(_SC_NPROCESSORS_ONLN);
-
-    fprintf(stderr, "[+]: My nodedata - IP: %s, UserID: %d, CPU Cores: %d\n",
-            inet_ntoa(local_addr.sin_addr), my_nodedata.userid, my_nodedata.cpu_core_num);
 
     if (wrapped_send(sock, &my_nodedata, sizeof(my_nodedata), 0) < 0) {
         close(sock);

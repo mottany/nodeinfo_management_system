@@ -5,6 +5,7 @@
 #include <arpa/inet.h>
 #include <errno.h>
 #include <sys/time.h>
+#include <stdlib.h>
 
 #include "common.h"
 #include "master_node_procedure.h"
@@ -18,6 +19,36 @@ enum {
 
 static const char *RELAY_SERVER_IP = "127.0.0.1";
 static const int  RELAY_SERVER_PORT = 9000;
+
+static struct nodedata_list* create_nodedata_list(void) {
+    int cap = (INITIAL_SIZE_OF_NODEDATA_LIST > 0) ? INITIAL_SIZE_OF_NODEDATA_LIST : 1;
+    size_t bytes = sizeof(struct nodedata_list) + sizeof(struct nodedata) * (size_t)cap;
+    struct nodedata_list *list = (struct nodedata_list *)malloc(bytes);
+    if (!list) {
+        fprintf(stderr, "[-]: Failed to allocate nodedata_list\n");
+        return NULL;
+    }
+    list->max_size = cap;
+    list->current_size = 0;
+
+    // 自ノード情報を取得して先頭に格納
+    struct nodedata me = get_my_nodedata();
+    if (me.ipaddress == 0 || me.userid < 0 || me.cpu_core_num <= 0) {
+        fprintf(stderr, "[-]: get_my_nodedata() returned invalid data (ip=%u uid=%d cpu=%d)\n",
+                me.ipaddress, me.userid, me.cpu_core_num);
+        free(list);
+        return NULL;
+    }
+    list->nodedatas[list->current_size++] = me;
+
+    // 出力（IPは文字列化）
+    char ipstr[INET_ADDRSTRLEN];
+    struct in_addr ia = { .s_addr = me.ipaddress };
+    inet_ntop(AF_INET, &ia, ipstr, sizeof(ipstr));
+    fprintf(stderr, "[+]: Initialized nodedata_list with self: IP=%s, UID=%d, CPU=%d (max=%d)\n",
+            ipstr, me.userid, me.cpu_core_num, list->max_size);
+    return list;
+}
 
 static int accept_request() {
     int sock;
@@ -267,19 +298,14 @@ static int send_nodeinfo_database() {
 int run_master_node_procedure() {
     fprintf(stderr, "[+]: Start master node procedure\n");
 
-    // nodedata_listの定義と初期化
-    struct nodedata_list nd_list;
-    memset(&nd_list, 0, sizeof(nd_list));
-    nd_list.max_size = INITIAL_SIZE_OF_NODEDATA_LIST;
+    // nodedata_listの作成（自ノード情報を格納）
+    struct nodedata_list *nd_list = create_nodedata_list();
+    if (!nd_list) {
+        fprintf(stderr, "[-]: Failed to create nodedata_list\n");
+        return -1;
+    }
 
     while(1){
-        // if(request_join_huge_cluster() < 0){
-        //     fprintf(stderr, "[-]: Failed to request join to huge cluster\n");
-        //     return -1;
-        // }
-        // fprintf(stderr, "[+]: Successfully requested join to huge cluster\n");
-        // メンバノードと中継サーバから要求メッセージを受け入れる
-        
         int request_code = accept_request();
         
         // メンバノードからノード登録要求を受信したら
@@ -292,16 +318,16 @@ int run_master_node_procedure() {
             }
             fprintf(stderr, "[+]: Successfully received nodedata from %s (uid=%d, cpu=%d)\n",
                     inet_ntoa(*(struct in_addr *)&nd.ipaddress), nd.userid, nd.cpu_core_num);
-            if(add_nodedata_to_list(&nd, &nd_list) < 0){
+            if(add_nodedata_to_list(&nd, nd_list) < 0){
                 fprintf(stderr, "[-]: Failed to add nodedata to list\n");
                 return -1;
             }
-            fprintf(stderr, "[+]: Successfully added nodedata to list (current size: %d)\n", nd_list.current_size);
-            if (print_nodedata_list(&nd_list) < 0) {
+            fprintf(stderr, "[+]: Successfully added nodedata to list (current size: %d)\n", nd_list->current_size);
+            if (print_nodedata_list(nd_list) < 0) {
                 fprintf(stderr, "[-]: Failed to print nodedata list\n");
                 return -1;
             }
-            if(distribute_nodedata_list(&nd_list) < 0){   // メンバノードと中継サーバの両方にnodedata_listを送る。
+            if(distribute_nodedata_list(nd_list) < 0){   // メンバノードと中継サーバの両方にnodedata_listを送る。
                 fprintf(stderr, "[-]: Failed to send nodedata_list\n");
                 return -1;
             }

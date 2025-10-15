@@ -1,7 +1,95 @@
+#include <stdio.h>
+#include <string.h>
+#include <unistd.h>
+#include <pwd.h>
+#include <ctype.h>
+#include <arpa/inet.h>
+#include <sys/socket.h>
+#include <ifaddrs.h>
+#include <net/if.h>
 #include <netinet/in.h>
 
 #include "common.h"
 #include "sock_wrapper_functions.h"
+
+// "u0_a123" から 123 を取り出す。失敗時は -1
+static int extract_numeric_userid(const char *name) {
+    if (!name) return -1;
+    const char *prefix = "u0_a";
+    const char *p = name;
+
+    if (strncmp(name, prefix, strlen(prefix)) == 0) {
+        p = name + strlen(prefix);
+    } else {
+        while (*p && !isdigit((unsigned char)*p)) p++;
+    }
+
+    long v = 0;
+    int have = 0;
+    while (*p && isdigit((unsigned char)*p)) {
+        v = v * 10 + (*p - '0');
+        have = 1;
+        p++;
+    }
+    if (!have) return -1;
+    return (int)v;
+}
+
+struct nodedata get_my_nodedata() {
+    struct nodedata nd;
+    nd.ipaddress = 0;
+    nd.userid = -1;
+    nd.cpu_core_num = 0;
+
+    // 1) IPアドレス取得: 非ループバックのIPv4を優先
+    struct ifaddrs *ifaddr = NULL;
+    if (getifaddrs(&ifaddr) == 0) {
+        for (struct ifaddrs *ifa = ifaddr; ifa; ifa = ifa->ifa_next) {
+            if (!ifa->ifa_addr) continue;
+            if (ifa->ifa_addr->sa_family != AF_INET) continue;
+            if (ifa->ifa_flags & IFF_LOOPBACK) continue;
+            struct sockaddr_in *sa = (struct sockaddr_in *)ifa->ifa_addr;
+            nd.ipaddress = sa->sin_addr.s_addr; // uint32_t (network byte order)
+            break;
+        }
+        freeifaddrs(ifaddr);
+    }
+
+    // フォールバック: UDPソケットで外向き経路の送信元IPを取得
+    if (nd.ipaddress == 0) {
+        int s = wrapped_socket(AF_INET, SOCK_DGRAM, 0);
+        if (s >= 0) {
+            struct sockaddr_in dst;
+            memset(&dst, 0, sizeof(dst));
+            dst.sin_family = AF_INET;
+            dst.sin_port = htons(53);
+            inet_pton(AF_INET, "8.8.8.8", &dst.sin_addr);
+            if (wrapped_connect(s, (struct sockaddr *)&dst, sizeof(dst)) == 0) {
+                struct sockaddr_in local;
+                socklen_t len = sizeof(local);
+                if (getsockname(s, (struct sockaddr *)&local, &len) == 0) {
+                    nd.ipaddress = local.sin_addr.s_addr;
+                }
+            }
+            close(s);
+        }
+    }
+
+    // 2) ユーザーID取得（名前 "u0_a123" -> 123）
+    struct passwd *ps = getpwuid(getuid());
+    int parsed = extract_numeric_userid(ps ? ps->pw_name : NULL);
+    if (parsed >= 0) {
+        nd.userid = parsed;
+    } else {
+        // 取得失敗時は -1 のまま
+    }
+
+    // 3) CPUコア数
+    long cores = sysconf(_SC_NPROCESSORS_ONLN);
+    if (cores > 0) nd.cpu_core_num = (int)cores;
+
+    return nd;
+}
 
 int print_nodedata_list(const struct nodedata_list *list) {
     if (!list) {
