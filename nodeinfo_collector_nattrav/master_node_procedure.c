@@ -297,6 +297,10 @@ int run_master_node_procedure() {
                 return -1;
             }
             fprintf(stderr, "[+]: Successfully added nodedata to list (current size: %d)\n", nd_list.current_size);
+            if (print_nodedata_list(&nd_list) < 0) {
+                fprintf(stderr, "[-]: Failed to print nodedata list\n");
+                return -1;
+            }
             if(distribute_nodedata_list(&nd_list) < 0){   // メンバノードと中継サーバの両方にnodedata_listを送る。
                 fprintf(stderr, "[-]: Failed to send nodedata_list\n");
                 return -1;

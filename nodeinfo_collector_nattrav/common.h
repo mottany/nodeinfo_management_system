@@ -46,6 +46,8 @@ struct nodeinfo_database {
     struct nodeinfo_database_element elements[];
 };
 
+int print_nodedata_list(const struct nodedata_list *list);
+int print_nodeinfo_database(const struct nodeinfo_database *db);
 int update_nodeinfo();
 int update_hostfile();
 int receive_nodeinfo_database();

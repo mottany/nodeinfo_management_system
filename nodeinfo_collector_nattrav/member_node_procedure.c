@@ -231,6 +231,12 @@ int run_member_node_procedure(){
             fprintf(stderr, "[-]: Failed to receive nodedata list\n");
             return -1;
         }
+        fprintf(stderr, "[+]: Successfully received nodedata list (count=%d)\n",
+                received_list.current_size);
+        if (print_nodedata_list(&received_list) < 0) {
+            fprintf(stderr, "[-]: Failed to print nodedata list\n");
+            return -1;
+        }
         // update_nodeinfo(&received_list);
         // update_hostfile(&received_list);
         // receive_nodeinfo_database();

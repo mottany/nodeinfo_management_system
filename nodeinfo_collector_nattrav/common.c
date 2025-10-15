@@ -3,6 +3,37 @@
 #include "common.h"
 #include "sock_wrapper_functions.h"
 
+int print_nodedata_list(const struct nodedata_list *list) {
+    if (!list) {
+        fprintf(stderr, "[-]: print_nodedata_list(): list is NULL\n");
+        return -1;
+    }
+    printf("Nodedata List (current size: %d, max size: %d):\n",
+           list->current_size, list->max_size);
+    for (int i = 0; i < list->current_size; i++) {
+        struct nodedata *nd = &list->nodedatas[i];
+        printf("  Node %d: IP=%d, UserID=%d, CPU Cores=%d\n",
+               i, nd->ipaddress, nd->userid, nd->cpu_core_num);
+    }
+    return 0;
+}
+
+int print_nodeinfo_database(const struct nodeinfo_database *db) {
+    if (!db) {
+        fprintf(stderr, "[-]: print_nodeinfo_database(): db is NULL\n");
+        return -1;
+    }
+    printf("Nodeinfo Database (current size: %d, max size: %d):\n",
+           db->current_size, db->max_size);
+    for (int i = 0; i < db->current_size; i++) {
+        struct nodeinfo_database_element *el = &db->elements[i];
+        printf("  Element %d: NetworkID=%d, IP=%d, UserID=%d, ControlPort=%d, MessagePort=%d, CPU Cores=%d\n",
+               i, el->network_id, el->ipaddress, el->userid,
+               el->control_port_num, el->message_port_num, el->cpu_core_num);
+    }
+    return 0;
+}
+
 int update_nodeinfo(struct nodedata_list *list) {
     fprintf(stderr, "[+]: Start updating nodeinfo database\n");
     // nodeinfoデータベースを更新する処理
