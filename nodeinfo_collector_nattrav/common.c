@@ -36,6 +36,8 @@ static int extract_numeric_userid(const char *name) {
 }
 
 struct nodedata get_my_nodedata() {
+    fprintf(stderr, "[+]: Getting my nodedata\n");
+    
     struct nodedata nd;
     nd.ipaddress = 0;
     nd.userid = -1;

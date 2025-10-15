@@ -21,6 +21,7 @@ static const char *RELAY_SERVER_IP = "127.0.0.1";
 static const int  RELAY_SERVER_PORT = 9000;
 
 static struct nodedata_list* create_nodedata_list(void) {
+    fprintf(stderr, "[+]: Creating nodedata_list\n");
     int cap = (INITIAL_SIZE_OF_NODEDATA_LIST > 0) ? INITIAL_SIZE_OF_NODEDATA_LIST : 1;
     size_t bytes = sizeof(struct nodedata_list) + sizeof(struct nodedata) * (size_t)cap;
     struct nodedata_list *list = (struct nodedata_list *)malloc(bytes);
@@ -33,7 +34,7 @@ static struct nodedata_list* create_nodedata_list(void) {
 
     // 自ノード情報を取得して先頭に格納
     struct nodedata me = get_my_nodedata();
-    if (me.ipaddress == 0 || me.userid < 0 || me.cpu_core_num <= 0) {
+    if (me.ipaddress == 0 || /*me.userid < 0 ||*/ me.cpu_core_num <= 0) {
         fprintf(stderr, "[-]: get_my_nodedata() returned invalid data (ip=%u uid=%d cpu=%d)\n",
                 me.ipaddress, me.userid, me.cpu_core_num);
         free(list);
@@ -51,6 +52,8 @@ static struct nodedata_list* create_nodedata_list(void) {
 }
 
 static int accept_request() {
+    fprintf(stderr, "[+]: Waiting for control message from member nodes or relay server\n");
+
     int sock;
     struct sockaddr_in addr, client_addr;
     socklen_t client_len = sizeof(client_addr);
@@ -123,7 +126,7 @@ static int accept_request() {
 }
 
 static int receive_nodedata(struct nodedata *out) {
-    fprintf(stderr, "[+]: Start receiving nodedata from member node\n");
+    fprintf(stderr, "[+]: Receiving nodedata from member node\n");
 
     if (!out) {
         fprintf(stderr, "[-]: receive_nodedata(): out is NULL\n");
@@ -182,7 +185,7 @@ static int receive_nodedata(struct nodedata *out) {
 }
 
 static int resize_nodedata_list(struct nodedata_list *list) {
-    fprintf(stderr, "[+]: Start resizing nodedata_list from max size %d to %d\n",
+    fprintf(stderr, "[+]: Resizing nodedata_list from max size %d to %d\n",
             list->max_size, list->max_size * 2);
     if (!list) {
         fprintf(stderr, "[-]: resize_nodedata_list(): list is NULL\n");
@@ -206,7 +209,7 @@ static int resize_nodedata_list(struct nodedata_list *list) {
 }
 
 static int add_nodedata_to_list(const struct nodedata *nd, struct nodedata_list *list) {
-    fprintf(stderr, "[+]: Start adding nodedata to nodedata_list\n");
+    fprintf(stderr, "[+]: Adding nodedata to nodedata_list\n");
     if (!nd || !list) {
         fprintf(stderr, "[-]: add_nodedata_to_list(): invalid args\n");
         return -1;
@@ -224,7 +227,7 @@ static int add_nodedata_to_list(const struct nodedata *nd, struct nodedata_list 
 }
 
 static int remove_nodedata_from_list(struct nodedata_list *list, int index) {
-    fprintf(stderr, "[+]: Start removing nodedata from nodedata_list\n");
+    fprintf(stderr, "[+]: Removing nodedata from nodedata_list\n");
     if (!list || index < 0 || index >= list->current_size) {
         fprintf(stderr, "[-]: remove_nodedata_from_list(): invalid args\n");
         return -1;
@@ -239,7 +242,7 @@ static int remove_nodedata_from_list(struct nodedata_list *list, int index) {
 }
 
 static int distribute_nodedata_list(const struct nodedata_list *list) {
-    fprintf(stderr, "[+]: Start distributing nodedata_list to member nodes and relay server\n");
+    fprintf(stderr, "[+]: Distributing nodedata_list to member nodes and relay server\n");
     if (!list) {
         fprintf(stderr, "[-]: distribute_nodedata_list(): list is NULL\n");
         return -1;

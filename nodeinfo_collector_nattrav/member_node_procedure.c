@@ -21,7 +21,7 @@ static const int RECV_TIMEOUT_SEC = 2;
 static const int RECV_TIMEOUT_USEC = 0;
 
 static int request_join_cluster(struct sockaddr_in *master_node_addr) {
-    fprintf(stderr, "[+]: Start cluster join request\n");
+    fprintf(stderr, "[+]: Requesting cluster join\n");
 
     int broadcast_sock;
     struct sockaddr_in broadcast_addr;
@@ -103,7 +103,7 @@ static int extract_numeric_userid(const char *name) {
 }
 
 static int send_my_nodedata(struct sockaddr_in *master_node_addr) {
-    fprintf(stderr, "[+]: Start sending my nodedata to master node\n");
+    fprintf(stderr, "[+]: Sending my nodedata to master node\n");
     
     int sock;
     struct nodedata my_nodedata = {0};
@@ -150,7 +150,7 @@ static int send_my_nodedata(struct sockaddr_in *master_node_addr) {
 }
 
 static int receive_nodedata_list(struct nodedata_list *list) {
-    fprintf(stderr, "[+]: Start receiving nodedata list from master node\n");
+    fprintf(stderr, "[+]: Receiving nodedata list from master node\n");
 
     int sock;
     struct sockaddr_in addr, sender_addr;
