@@ -8,6 +8,7 @@
 
 #include "common.h"
 #include "master_node_procedure.h"
+#include "sock_wrapper_functions.h"
 
 enum {
     JOIN_REQUEST_CODE = 1,
@@ -90,13 +91,17 @@ static int accept_request() {
     }
 }
 
-static int receive_nodedata() {
+static int receive_nodedata(struct nodedata *out) {
     fprintf(stderr, "[+]: Start receiving nodedata from member node\n");
+
+    if (!out) {
+        fprintf(stderr, "[-]: receive_nodedata(): out is NULL\n");
+        return -1;
+    }
 
     int listen_sock, conn_sock;
     struct sockaddr_in addr, client_addr;
     socklen_t client_len = sizeof(client_addr);
-    struct nodedata nd;
     int opt = 1;
 
     listen_sock = wrapped_socket(AF_INET, SOCK_STREAM, 0);
@@ -128,10 +133,10 @@ static int receive_nodedata() {
     }
 
     // 構造体サイズぶんを受信（短い受信に備えてループ）
-    size_t need = sizeof(nd);
+    size_t need = sizeof(*out);
     size_t got = 0;
     while (got < need) {
-        int r = wrapped_recv(conn_sock, ((char *)&nd) + got, need - got, 0);
+        int r = wrapped_recv(conn_sock, ((char *)out) + got, need - got, 0);
         if (r <= 0) {
             close(conn_sock);
             close(listen_sock);
@@ -141,23 +146,104 @@ static int receive_nodedata() {
     }
 
     fprintf(stderr, "[+]: Successfully received nodedata from %s (uid=%d, cpu=%d)\n",
-            inet_ntoa(client_addr.sin_addr), nd.userid, nd.cpu_core_num);
+            inet_ntoa(client_addr.sin_addr), out->userid, out->cpu_core_num);
 
     close(conn_sock);
     close(listen_sock);
     return 0;
 }
 
-static int add_nodedata_to_list() {
-    // 受信したノード情報をリストに追加
+static int resize_nodedata_list(struct nodedata_list *list) {
+    fprintf(stderr, "[+]: Start resizing nodedata_list from max size %d to %d\n",
+            list->max_size, list->max_size * 2);
+    if (!list) {
+        fprintf(stderr, "[-]: resize_nodedata_list(): list is NULL\n");
+        return -1;
+    }
+    int new_max_size = list->max_size * 2;
+    struct nodedata_list *new_list = malloc(sizeof(struct nodedata_list) +
+                                           sizeof(struct nodedata) * new_max_size);
+    if (!new_list) {
+        fprintf(stderr, "[-]: Failed to allocate memory for resized nodedata_list\n");
+        return -1;
+    }
+    new_list->max_size = new_max_size;
+    new_list->current_size = list->current_size;
+    memcpy(new_list->nodedatas, list->nodedatas,
+           sizeof(struct nodedata) * list->current_size);
+    free(list);
+    list = new_list;
+    fprintf(stderr, "[+]: Successfully resized nodedata_list to new max size %d\n", list->max_size);
+    return 0;
+}
+
+static int add_nodedata_to_list(const struct nodedata *nd, struct nodedata_list *list) {
+    if (!nd || !list) {
+        fprintf(stderr, "[-]: add_nodedata_to_list(): invalid args\n");
+        return -1;
+    }
+    if (list->current_size >= list->max_size) {
+        fprintf(stderr, "[-]: nodedata_list is full (current=%d, max=%d)\n",
+                list->current_size, list->max_size);
+        if(resize_nodedata_list(list) < 0) {
+            return -1;
+        }
+    }
+    list->nodedatas[list->current_size] = *nd;
+    list->current_size++;
+    return 0;
 }
 
 static int remove_nodedata_from_list() {
     // 受信したノード情報をリストから削除
 }
 
-static int send_nodedata_list() {
-    // ノード情報リスト送信
+static int distribute_nodedata_list(const struct nodedata_list *list) {
+    if (!list) {
+        fprintf(stderr, "[-]: distribute_nodedata_list(): list is NULL\n");
+        return -1;
+    }
+    if (list->current_size < 0 || list->max_size <= 0) {
+        fprintf(stderr, "[-]: distribute_nodedata_list(): invalid list sizes\n");
+        return -1;
+    }
+
+    // 送信サイズはヘッダ + 現在要素数ぶんの可変配列
+    size_t payload_len = sizeof(struct nodedata_list) +
+                         sizeof(struct nodedata) * (size_t)list->current_size;
+
+    int sock = wrapped_socket(AF_INET, SOCK_DGRAM, 0);
+    if (sock < 0) {
+        return -1;
+    }
+
+    int failures = 0;
+    for (int i = 0; i < list->current_size; i++) {
+        uint32_t ip = list->nodedatas[i].ipaddress; // network byte order (uint32_t)
+        if (ip == 0) continue; // 不正IPはスキップ
+
+        struct sockaddr_in dst;
+        memset(&dst, 0, sizeof(dst));
+        dst.sin_family = AF_INET;
+        dst.sin_port = htons(NODEDATA_LIST_PORT);
+        dst.sin_addr.s_addr = ip;
+
+        ssize_t n = sendto(sock, list, payload_len, 0,
+                           (struct sockaddr *)&dst, sizeof(dst));
+        if (n < 0 || (size_t)n != payload_len) {
+            perror("[-]: sendto(nodedata_list)");
+            failures++;
+            continue;
+        }
+
+        char ipstr[INET_ADDRSTRLEN];
+        inet_ntop(AF_INET, &dst.sin_addr, ipstr, sizeof(ipstr));
+        fprintf(stderr, "[+]: Sent nodedata_list (count=%d) to %s:%d\n",
+                list->current_size, ipstr, NODEDATA_LIST_PORT);
+    }
+
+    close(sock);
+    return failures ? -1 : 0;
 }
 
 static int request_join_huge_cluster() {
@@ -171,18 +257,38 @@ static int send_nodeinfo_database() {
 int run_master_node_procedure() {
     fprintf(stderr, "[+]: Start master node procedure\n");
 
+    // nodedata_listの定義と初期化
+    struct nodedata_list nd_list;
+    memset(&nd_list, 0, sizeof(nd_list));
+    nd_list.max_size = INITIAL_SIZE_OF_NODEDATA_LIST;
+
     while(1){
+        // if(request_join_huge_cluster() < 0){
+        //     fprintf(stderr, "[-]: Failed to request join to huge cluster\n");
+        //     return -1;
+        // }
+        // fprintf(stderr, "[+]: Successfully requested join to huge cluster\n");
         // メンバノードと中継サーバから要求メッセージを受け入れる
+        
         int request_code = accept_request();
         
         // メンバノードからノード登録要求を受信したら
         if(request_code == JOIN_REQUEST_CODE){
-            if(receive_nodedata() < 0){
-                fprintf(stderr, "[-]: Failed to receive nodedata from member node\n");
+            struct nodedata nd;
+            memset(&nd, 0, sizeof(nd));
+            if(receive_nodedata(&nd) < 0){
+                 fprintf(stderr, "[-]: Failed to receive nodedata from member node\n");
+                 return -1;
+            }
+            if(add_nodedata_to_list(&nd, &nd_list) < 0){
+                fprintf(stderr, "[-]: Failed to add nodedata to list\n");
                 return -1;
             }
-            // add_nodedata_to_list();
-            // send_nodedata_list();   // メンバノードと中継サーバの両方にnodedata_listを送る。
+            fprintf(stderr, "[+]: Added nodedata to list (current size: %d)\n", nd_list.current_size);
+            if(distribute_nodedata_list(&nd_list) < 0){   // メンバノードと中継サーバの両方にnodedata_listを送る。
+                fprintf(stderr, "[-]: Failed to send nodedata_list\n");
+                return -1;
+            }
             // update_nodeinfo();
             // update_hostfile();
         }
@@ -190,7 +296,7 @@ int run_master_node_procedure() {
         /*else if(request_code == LEAVE_REQUEST_CODE){
             receive_nodedata();
             remove_nodedata_from_list();
-            send_nodedata_list();   // メンバノードと中継サーバの両方にnodedata_listを送る。
+            distribute_nodedata_list();   // メンバノードと中継サーバの両方にnodedata_listを送る。
         }
         // 中継サーバから「データベースを受け取れ」要求を受信したら
         else if(request_code == READY_DB_REQUEST_CODE){

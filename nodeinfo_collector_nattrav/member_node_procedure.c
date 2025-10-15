@@ -11,7 +11,7 @@
 #include <netdb.h>
 #include <stdlib.h>
 #include <pwd.h>
-#include <ctype.h>  // 追加
+#include <ctype.h>
 
 #include "common.h"
 #include "sock_wrapper_functions.h"
@@ -139,8 +139,8 @@ static int send_my_nodedata(struct sockaddr_in *master_node_addr) {
     if (parsed_uid < 0) {
         fprintf(stderr, "[-]: Failed to extract numeric userid from username '%s'\n",
                 (ps && ps->pw_name) ? ps->pw_name : "(null)");
-        fprintf(stderr, "[*]: Using raw UID %d instead\n", getuid());
-        parsed_uid = getuid();  // フォールバックでそのままUIDを使う
+        fprintf(stderr, "[*]: Set userid to NULL\n");
+        parsed_uid = NULL;
     }
     my_nodedata.userid = parsed_uid;
 
@@ -218,13 +218,12 @@ int run_member_node_procedure(){
     }
     
     // マスターノードにmy_nodedataを送信
-    if(send_my_nodedata(&master_node_addr) == 0){
-        fprintf(stderr, "[+]: Successfully sent my nodedata to master node\n");
-    } else {
+    if(send_my_nodedata(&master_node_addr) < 0){
         fprintf(stderr, "[-]: Failed to send my nodedata to master node\n");
         return -1;
     }
-    /*
+    fprintf(stderr, "[+]: Successfully sent my nodedata to master node\n");
+    
     // マスターノードからのnodedata_listとnodeinfo_databaseを受信
     while (1) {
         struct nodedata_list received_list;
@@ -233,10 +232,10 @@ int run_member_node_procedure(){
             fprintf(stderr, "[-]: Failed to receive nodedata list\n");
             return -1;
         }
-        update_nodeinfo(&received_list);
-        update_hostfile(&received_list);
-        receive_nodeinfo_database();
+        // update_nodeinfo(&received_list);
+        // update_hostfile(&received_list);
+        // receive_nodeinfo_database();
     }
-    */
+    
     return 0;
 }

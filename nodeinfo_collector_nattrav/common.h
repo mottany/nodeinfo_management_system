@@ -15,6 +15,8 @@
 #define NODEDATA_LIST_PORT 8002
 #define NODEINFO_DB_PORT 8003
 
+#define INITIAL_SIZE_OF_NODEDATA_LIST 16
+
 #define IS_TIMEOUT (-2)
 
 struct nodedata {
