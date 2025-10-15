@@ -227,8 +227,7 @@ int run_member_node_procedure(){
     // マスターノードからのnodedata_listとnodeinfo_databaseを受信
     while (1) {
         struct nodedata_list received_list;
-        int ret = receive_nodedata_list(&received_list);
-        if (ret <= 0) {
+        if (receive_nodedata_list(&received_list) <= 0) {
             fprintf(stderr, "[-]: Failed to receive nodedata list\n");
             return -1;
         }

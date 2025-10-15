@@ -145,9 +145,6 @@ static int receive_nodedata(struct nodedata *out) {
         got += (size_t)r;
     }
 
-    fprintf(stderr, "[+]: Successfully received nodedata from %s (uid=%d, cpu=%d)\n",
-            inet_ntoa(client_addr.sin_addr), out->userid, out->cpu_core_num);
-
     close(conn_sock);
     close(listen_sock);
     return 0;
@@ -178,6 +175,7 @@ static int resize_nodedata_list(struct nodedata_list *list) {
 }
 
 static int add_nodedata_to_list(const struct nodedata *nd, struct nodedata_list *list) {
+    fprintf(stderr, "[+]: Start adding nodedata to nodedata_list\n");
     if (!nd || !list) {
         fprintf(stderr, "[-]: add_nodedata_to_list(): invalid args\n");
         return -1;
@@ -194,11 +192,23 @@ static int add_nodedata_to_list(const struct nodedata *nd, struct nodedata_list 
     return 0;
 }
 
-static int remove_nodedata_from_list() {
-    // 受信したノード情報をリストから削除
+static int remove_nodedata_from_list(struct nodedata_list *list, int index) {
+    fprintf(stderr, "[+]: Start removing nodedata from nodedata_list\n");
+    if (!list || index < 0 || index >= list->current_size) {
+        fprintf(stderr, "[-]: remove_nodedata_from_list(): invalid args\n");
+        return -1;
+    }
+    // 削除対象のノード情報を上書き
+    for (int i = index; i < list->current_size - 1; i++) {
+        list->nodedatas[i] = list->nodedatas[i + 1];
+    }
+    list->current_size--;
+    fprintf(stderr, "[+]: Successfully removed nodedata from list (new size: %d)\n", list->current_size);
+    return 0;
 }
 
 static int distribute_nodedata_list(const struct nodedata_list *list) {
+    fprintf(stderr, "[+]: Start distributing nodedata_list to member nodes and relay server\n");
     if (!list) {
         fprintf(stderr, "[-]: distribute_nodedata_list(): list is NULL\n");
         return -1;
@@ -280,15 +290,18 @@ int run_master_node_procedure() {
                  fprintf(stderr, "[-]: Failed to receive nodedata from member node\n");
                  return -1;
             }
+            fprintf(stderr, "[+]: Successfully received nodedata from %s (uid=%d, cpu=%d)\n",
+                    inet_ntoa(*(struct in_addr *)&nd.ipaddress), nd.userid, nd.cpu_core_num);
             if(add_nodedata_to_list(&nd, &nd_list) < 0){
                 fprintf(stderr, "[-]: Failed to add nodedata to list\n");
                 return -1;
             }
-            fprintf(stderr, "[+]: Added nodedata to list (current size: %d)\n", nd_list.current_size);
+            fprintf(stderr, "[+]: Successfully added nodedata to list (current size: %d)\n", nd_list.current_size);
             if(distribute_nodedata_list(&nd_list) < 0){   // メンバノードと中継サーバの両方にnodedata_listを送る。
                 fprintf(stderr, "[-]: Failed to send nodedata_list\n");
                 return -1;
             }
+            fprintf(stderr, "[+]: Successfully sent nodedata_list to all member nodes and relay server\n");
             // update_nodeinfo();
             // update_hostfile();
         }
