@@ -244,7 +244,7 @@ int update_hostfile(const struct nodedata_list *list) {
             return -1;
         }
 
-        if (fprintf(fp, "%s %d\n", ipstr, nd->cpu_core_num) < 0) {
+        if (fprintf(fp, "%s cpu=%d\n", ipstr, nd->cpu_core_num) < 0) {
             perror("[-]: fprintf");
             fclose(fp);
             unlink(tmp);
