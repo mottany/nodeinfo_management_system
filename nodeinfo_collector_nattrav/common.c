@@ -161,7 +161,7 @@ int update_nodeinfo(struct nodedata_list *list) {
         }
 
         if (nd->userid < 0) {
-            if (fprintf(fp, "%s %s\n", ipstr, "Not Android") < 0) {
+            if (fprintf(fp, "%s %s\n", ipstr, "NotAndroid") < 0) {
                 perror("[-]: fprintf");
                 fclose(fp);
                 unlink(tmp);
