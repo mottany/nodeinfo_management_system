@@ -260,7 +260,6 @@ int run_member_node_procedure(){
             free(received_list);
             return -1;
         }
-
         if (update_nodeinfo(received_list) < 0) {
             fprintf(stderr, "[-]: Failed to update nodeinfo file\n");
             free(received_list);
