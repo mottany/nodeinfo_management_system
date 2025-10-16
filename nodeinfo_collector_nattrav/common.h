@@ -9,6 +9,8 @@
 #define BYE_NODE_MSG "Bye_node"
 #define READY_SEND_DB_MSG "Ready_to_send_DB"
 #define READY_RECV_DB_MSG "Ready_to_recv_DB"
+#define NODEINFO "nodeinfo"
+#define HOSTFILE "hostfile"
 
 #define CTRL_MSG_PORT 8000
 #define NODEDATA_PORT 8001
@@ -49,8 +51,8 @@ struct nodeinfo_database {
 struct nodedata get_my_nodedata();
 int print_nodedata_list(const struct nodedata_list *list);
 int print_nodeinfo_database(const struct nodeinfo_database *db);
-int update_nodeinfo();
-int update_hostfile();
+int update_nodeinfo(struct nodedata_list *list);
+int update_hostfile(const struct nodedata_list *list);
 int receive_nodeinfo_database();
 
 #endif /* COMMON_H */

@@ -250,20 +250,27 @@ int run_member_node_procedure(){
     while (1) {
         struct nodedata_list *received_list = NULL;
         if (receive_nodedata_list(&received_list) < 0) {
-             fprintf(stderr, "[-]: Failed to receive nodedata list\n");
-             return -1;
-         }
-         fprintf(stderr, "[+]: Successfully received nodedata list (count=%d)\n",
+            fprintf(stderr, "[-]: Failed to receive nodedata list\n");
+            return -1;
+        }
+        fprintf(stderr, "[+]: Successfully received nodedata list (count=%d)\n",
                 received_list->current_size);
         if (print_nodedata_list(received_list) < 0) {
-             fprintf(stderr, "[-]: Failed to print nodedata list\n");
+            fprintf(stderr, "[-]: Failed to print nodedata list\n");
             free(received_list);
-             return -1;
-         }
-         free(received_list);
-         // update_nodeinfo(&received_list);
-         // update_hostfile(&received_list);
-         // receive_nodeinfo_database();
+            return -1;
+        }
+        free(received_list);
+        if(update_nodeinfo(&received_list) < 0) {
+            fprintf(stderr, "[-]: Failed to update nodeinfo file\n");
+            return -1;
+        }
+        if (update_hostfile(&received_list) < 0) {
+            fprintf(stderr, "[-]: Failed to update hostfile\n");
+            return -1;
+        }
+        fprintf(stderr, "[+]: Successfully updated nodeinfo and hostfile\n");
+        // receive_nodeinfo_database();
      }
     
     return 0;
