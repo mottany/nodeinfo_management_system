@@ -260,16 +260,19 @@ int run_member_node_procedure(){
             free(received_list);
             return -1;
         }
-        free(received_list);
-        if(update_nodeinfo(&received_list) < 0) {
+
+        if (update_nodeinfo(received_list) < 0) {
             fprintf(stderr, "[-]: Failed to update nodeinfo file\n");
+            free(received_list);
             return -1;
         }
-        if (update_hostfile(&received_list) < 0) {
+        if (update_hostfile(received_list) < 0) {
             fprintf(stderr, "[-]: Failed to update hostfile\n");
+            free(received_list);
             return -1;
         }
         fprintf(stderr, "[+]: Successfully updated nodeinfo and hostfile\n");
+        free(received_list);
         // receive_nodeinfo_database();
      }
     

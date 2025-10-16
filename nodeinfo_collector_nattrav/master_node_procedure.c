@@ -335,8 +335,15 @@ int run_master_node_procedure() {
                 return -1;
             }
             fprintf(stderr, "[+]: Successfully sent nodedata_list to all member nodes and relay server\n");
-            // update_nodeinfo();
-            // update_hostfile();
+            if(update_nodeinfo(&nd_list) < 0) {
+                fprintf(stderr, "[-]: Failed to update nodeinfo\n");
+                return -1;
+            }
+            if(update_hostfile(&nd_list) < 0) {
+                fprintf(stderr, "[-]: Failed to update hostfile\n");
+                return -1;
+            }
+            fprintf(stderr, "[+]: Successfully updated nodeinfo and hostfile\n");
         }
         // メンバノードからノード脱退要求を受信したら
         /*else if(request_code == LEAVE_REQUEST_CODE){

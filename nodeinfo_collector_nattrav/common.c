@@ -8,6 +8,8 @@
 #include <ifaddrs.h>
 #include <net/if.h>
 #include <netinet/in.h>
+#include <errno.h>
+#include <sys/stat.h>
 
 #include "common.h"
 #include "sock_wrapper_functions.h"
@@ -136,6 +138,11 @@ int update_nodeinfo(struct nodedata_list *list) {
     char tmp[256];
     snprintf(tmp, sizeof(tmp), "%s.tmp", target);
 
+    int is_new = 0;
+    if (access(target, F_OK) == -1 && errno == ENOENT) {
+        is_new = 1;
+    }
+
     FILE *fp = fopen(tmp, "w");
     if (!fp) {
         perror("[-]: fopen");
@@ -144,8 +151,6 @@ int update_nodeinfo(struct nodedata_list *list) {
 
     for (int i = 0; i < list->current_size; i++) {
         const struct nodedata *nd = &list->nodedatas[i];
-
-        // IPを文字列化
         char ipstr[INET_ADDRSTRLEN];
         struct in_addr ia = { .s_addr = nd->ipaddress };
         if (!inet_ntop(AF_INET, &ia, ipstr, sizeof(ipstr))) {
@@ -155,7 +160,6 @@ int update_nodeinfo(struct nodedata_list *list) {
             return -1;
         }
 
-        // useridが-1なら "Not Android"、それ以外は "u0_a<userid>"
         if (nd->userid < 0) {
             if (fprintf(fp, "%s %s\n", ipstr, "Not Android") < 0) {
                 perror("[-]: fprintf");
@@ -182,7 +186,6 @@ int update_nodeinfo(struct nodedata_list *list) {
     int fd = fileno(fp);
     if (fd >= 0 && fsync(fd) != 0) {
         perror("[-]: fsync");
-        // 続行（最終的にrenameで原子更新）
     }
     if (fclose(fp) != 0) {
         perror("[-]: fclose");
@@ -193,6 +196,13 @@ int update_nodeinfo(struct nodedata_list *list) {
         perror("[-]: rename");
         unlink(tmp);
         return -1;
+    }
+    if (is_new) {
+        if (chmod(target, 0644) != 0) {
+            perror("[-]: chmod");
+        } else {
+            fprintf(stderr, "[+]: Created %s\n", target);
+        }
     }
 
     fprintf(stderr, "[+]: Updated %s with %d entries\n", target, list->current_size);
@@ -211,9 +221,14 @@ int update_hostfile(const struct nodedata_list *list) {
     char tmp[256];
     snprintf(tmp, sizeof(tmp), "%s.tmp", target);
 
+    int is_new = 0;
+    if (access(target, F_OK) == -1 && errno == ENOENT) {
+        is_new = 1;
+    }
+
     FILE *fp = fopen(tmp, "w");
     if (!fp) {
-        perror("fopen");
+        perror("[-]: fopen");
         return -1;
     }
 
@@ -223,14 +238,14 @@ int update_hostfile(const struct nodedata_list *list) {
         char ipstr[INET_ADDRSTRLEN];
         struct in_addr ia = { .s_addr = nd->ipaddress };
         if (!inet_ntop(AF_INET, &ia, ipstr, sizeof(ipstr))) {
-            perror("inet_ntop");
+            perror("[-]: inet_ntop");
             fclose(fp);
             unlink(tmp);
             return -1;
         }
 
         if (fprintf(fp, "%s %d\n", ipstr, nd->cpu_core_num) < 0) {
-            perror("fprintf");
+            perror("[-]: fprintf");
             fclose(fp);
             unlink(tmp);
             return -1;
@@ -238,25 +253,31 @@ int update_hostfile(const struct nodedata_list *list) {
     }
 
     if (fflush(fp) != 0) {
-        perror("fflush");
+        perror("[-]: fflush");
         fclose(fp);
         unlink(tmp);
         return -1;
     }
-    int fd = fileno(fp);
-    if (fd >= 0 && fsync(fd) != 0) {
-        perror("fsync");
-        // 続行（最終的にrenameで原子更新）
+    int fd2 = fileno(fp);
+    if (fd2 >= 0 && fsync(fd2) != 0) {
+        perror("[-]: fsync");
     }
     if (fclose(fp) != 0) {
-        perror("fclose");
+        perror("[-]: fclose");
         unlink(tmp);
         return -1;
     }
     if (rename(tmp, target) != 0) {
-        perror("rename");
+        perror("[-]: rename");
         unlink(tmp);
         return -1;
+    }
+    if (is_new) {
+        if (chmod(target, 0644) != 0) {
+            perror("[-]: chmod");
+        } else {
+            fprintf(stderr, "[+]: Created %s\n", target);
+        }
     }
 
     fprintf(stderr, "[+]: Updated %s with %d entries\n", target, list->current_size);
