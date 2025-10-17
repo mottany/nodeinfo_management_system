@@ -20,7 +20,6 @@ enum {
 static const char *HELLO_RELAY_SERVER_MSG = "Hello_relay_server!";
 
 static const char *RELAY_SERVER_IP = "160.12.172.77";
-static const int  RELAY_SERVER_PORT = 9000;
 
 static struct nodedata_list* create_nodedata_list(void) {
     fprintf(stderr, "[+]: Creating nodedata_list\n");
@@ -295,7 +294,7 @@ static int distribute_nodedata_list(const struct nodedata_list *list) {
 static int request_join_huge_cluster() {
     // 中継サーバにクラスタ参加要求: HELLO を送り、network_id(uint32_t)を受け取る
     fprintf(stderr, "[+]: Requesting to join huge cluster via relay server\n");
-    
+
     int sock = wrapped_socket(AF_INET, SOCK_DGRAM, 0);
     if (sock < 0) {
         return -1;
@@ -304,7 +303,7 @@ static int request_join_huge_cluster() {
     struct sockaddr_in relay;
     memset(&relay, 0, sizeof(relay));
     relay.sin_family = AF_INET;
-    relay.sin_port = htons(RELAY_SERVER_PORT);
+    relay.sin_port = htons(CTRL_MSG_PORT);
     if (inet_pton(AF_INET, RELAY_SERVER_IP, &relay.sin_addr) != 1) {
         fprintf(stderr, "[-]: inet_pton failed for RELAY_SERVER_IP=%s\n", RELAY_SERVER_IP);
         close(sock);
