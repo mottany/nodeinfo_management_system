@@ -17,6 +17,8 @@ enum {
     RECV_DB_REQUEST_CODE = 3
 };
 
+static const char *HELLO_RELAY_SERVER_MSG = "Hello_relay_server!";
+
 static const char *RELAY_SERVER_IP = "127.0.0.1";
 static const int  RELAY_SERVER_PORT = 9000;
 
@@ -291,7 +293,54 @@ static int distribute_nodedata_list(const struct nodedata_list *list) {
 }
 
 static int request_join_huge_cluster() {
-    // 中継サーバにクラスタ参加要求
+    // 中継サーバにクラスタ参加要求: HELLO を送り、network_id(uint32_t)を受け取る
+    int sock = wrapped_socket(AF_INET, SOCK_DGRAM, 0);
+    if (sock < 0) {
+        return -1;
+    }
+
+    struct sockaddr_in relay;
+    memset(&relay, 0, sizeof(relay));
+    relay.sin_family = AF_INET;
+    relay.sin_port = htons(RELAY_SERVER_PORT);
+    if (inet_pton(AF_INET, RELAY_SERVER_IP, &relay.sin_addr) != 1) {
+        fprintf(stderr, "[-]: inet_pton failed for RELAY_SERVER_IP=%s\n", RELAY_SERVER_IP);
+        close(sock);
+        return -1;
+    }
+
+    size_t msglen = strlen(HELLO_RELAY_SERVER_MSG);
+    if (sendto(sock, HELLO_RELAY_SERVER_MSG, msglen, 0,
+               (struct sockaddr *)&relay, sizeof(relay)) < 0) {
+        perror("[-]: sendto(HELLO_RELAY_SERVER_MSG)");
+        close(sock);
+        return -1;
+    }
+
+    uint32_t nid_n = 0;
+    struct sockaddr_in from;
+    socklen_t fromlen = sizeof(from);
+    int r = wrapped_recvfrom(sock, &nid_n, sizeof(nid_n), 0,
+                              (struct sockaddr *)&from, &fromlen);
+    if (r <= 0) {
+        close(sock);
+        return -1;
+    }
+    if (r != (int)sizeof(nid_n)) {
+        fprintf(stderr, "[-]: unexpected reply size: %d (expected %zu)\n", r, sizeof(nid_n));
+        close(sock);
+        return -1;
+    }
+
+    int network_id = (int)ntohl(nid_n);
+
+    char rip[INET_ADDRSTRLEN];
+    inet_ntop(AF_INET, &from.sin_addr, rip, sizeof(rip));
+    fprintf(stderr, "[+]: Relay server assigned network_id=%d (from %s:%d)\n",
+            network_id, rip, ntohs(from.sin_port));
+
+    close(sock);
+    return network_id;
 }
 
 static int send_nodeinfo_database() {
@@ -305,6 +354,11 @@ int run_master_node_procedure() {
     struct nodedata_list *nd_list = create_nodedata_list();
     if (!nd_list) {
         fprintf(stderr, "[-]: Failed to create nodedata_list\n");
+        return -1;
+    }
+
+    if (request_join_huge_cluster() < 0) {
+        fprintf(stderr, "[-]: Failed to join huge cluster via relay server\n");
         return -1;
     }
 

@@ -30,6 +30,7 @@ struct nodedata {
 struct nodedata_list {
     int max_size;
     int current_size;
+    int network_id;
     struct nodedata nodedatas[];
 };
 
