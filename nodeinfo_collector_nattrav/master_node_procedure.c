@@ -19,7 +19,7 @@ enum {
 
 static const char *HELLO_RELAY_SERVER_MSG = "Hello_relay_server!";
 
-static const char *RELAY_SERVER_IP = "127.0.0.1";
+static const char *RELAY_SERVER_IP = "160.12.172.77";
 static const int  RELAY_SERVER_PORT = 9000;
 
 static struct nodedata_list* create_nodedata_list(void) {
@@ -294,6 +294,8 @@ static int distribute_nodedata_list(const struct nodedata_list *list) {
 
 static int request_join_huge_cluster() {
     // 中継サーバにクラスタ参加要求: HELLO を送り、network_id(uint32_t)を受け取る
+    fprintf(stderr, "[+]: Requesting to join huge cluster via relay server\n");
+    
     int sock = wrapped_socket(AF_INET, SOCK_DGRAM, 0);
     if (sock < 0) {
         return -1;
