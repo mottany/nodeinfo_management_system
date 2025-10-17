@@ -50,8 +50,8 @@ struct nodeinfo_database {
 };
 
 struct nodedata get_my_nodedata();
-int print_nodedata_list(const struct nodedata_list *list);
-int print_nodeinfo_database(const struct nodeinfo_database *db);
+void print_nodedata_list(const struct nodedata_list *list);
+void print_nodeinfo_database(const struct nodeinfo_database *db);
 int update_nodeinfo(struct nodedata_list *list);
 int update_hostfile(const struct nodedata_list *list);
 int receive_nodeinfo_database();

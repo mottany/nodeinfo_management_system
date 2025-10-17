@@ -255,11 +255,7 @@ int run_member_node_procedure(){
         }
         fprintf(stderr, "[+]: Successfully received nodedata list (count=%d)\n",
                 received_list->current_size);
-        if (print_nodedata_list(received_list) < 0) {
-            fprintf(stderr, "[-]: Failed to print nodedata list\n");
-            free(received_list);
-            return -1;
-        }
+        print_nodedata_list(received_list);
         if (update_nodeinfo(received_list) < 0) {
             fprintf(stderr, "[-]: Failed to update nodeinfo file\n");
             free(received_list);

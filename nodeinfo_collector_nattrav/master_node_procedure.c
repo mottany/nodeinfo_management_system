@@ -17,9 +17,26 @@ enum {
     RECV_DB_REQUEST_CODE = 3
 };
 
-static const char *HELLO_RELAY_SERVER_MSG = "Hello_relay_server!";
+static const char HELLO_RELAY_SERVER_MSG[]        = "Hello_relay_server!";
+static const char READY_SEND_NODEDATA_LIST_MSG[]  = "Ready_to_send_nodedata_list";
+static const char READY_RECV_NODEDATA_LIST_MSG[]  = "Ready_to_recv_nodedata_list";
 
-static const char *RELAY_SERVER_IP = "160.12.172.77";
+static char RELAY_SERVER_IP[INET_ADDRSTRLEN] = "160.12.172.77";
+
+static void init_relay_server_ip(void) {
+    const char *env = getenv("RELAY_SERVER_IP");
+    if (env && *env) {
+        struct in_addr tmp;
+        if (inet_pton(AF_INET, env, &tmp) == 1) {
+            // valid IPv4 string; copy safely
+            strncpy(RELAY_SERVER_IP, env, sizeof(RELAY_SERVER_IP) - 1);
+            RELAY_SERVER_IP[sizeof(RELAY_SERVER_IP) - 1] = '\0';
+            fprintf(stderr, "[+]: Using RELAY_SERVER_IP from env: %s\n", RELAY_SERVER_IP);
+        } else {
+            fprintf(stderr, "[-]: Ignoring invalid RELAY_SERVER_IP env: %s\n", env);
+        }
+    }
+}
 
 static struct nodedata_list* create_nodedata_list(void) {
     fprintf(stderr, "[+]: Creating nodedata_list\n");
@@ -50,6 +67,59 @@ static struct nodedata_list* create_nodedata_list(void) {
     fprintf(stderr, "[+]: Initialized nodedata_list with self: IP=%s, UID=%d, CPU=%d (max=%d)\n",
             ipstr, me.userid, me.cpu_core_num, list->max_size);
     return list;
+}
+
+static int request_join_huge_cluster() {
+    // 中継サーバにクラスタ参加要求: HELLO を送り、network_id(uint32_t)を受け取る
+    fprintf(stderr, "[+]: Requesting to join huge cluster via relay server\n");
+
+    int sock = wrapped_socket(AF_INET, SOCK_DGRAM, 0);
+    if (sock < 0) {
+        return -1;
+    }
+
+    struct sockaddr_in relay;
+    memset(&relay, 0, sizeof(relay));
+    relay.sin_family = AF_INET;
+    relay.sin_port = htons(CTRL_MSG_PORT);
+    if (inet_pton(AF_INET, RELAY_SERVER_IP, &relay.sin_addr) != 1) {
+        fprintf(stderr, "[-]: inet_pton failed for RELAY_SERVER_IP=%s\n", RELAY_SERVER_IP);
+        close(sock);
+        return -1;
+    }
+
+    size_t msglen = strlen(HELLO_RELAY_SERVER_MSG);
+    if (sendto(sock, HELLO_RELAY_SERVER_MSG, msglen, 0,
+               (struct sockaddr *)&relay, sizeof(relay)) < 0) {
+        perror("[-]: sendto(HELLO_RELAY_SERVER_MSG)");
+        close(sock);
+        return -1;
+    }
+
+    uint32_t nid_n = 0;
+    struct sockaddr_in from;
+    socklen_t fromlen = sizeof(from);
+    int r = wrapped_recvfrom(sock, &nid_n, sizeof(nid_n), 0,
+                              (struct sockaddr *)&from, &fromlen);
+    if (r <= 0) {
+        close(sock);
+        return -1;
+    }
+    if (r != (int)sizeof(nid_n)) {
+        fprintf(stderr, "[-]: unexpected reply size: %d (expected %zu)\n", r, sizeof(nid_n));
+        close(sock);
+        return -1;
+    }
+
+    int network_id = (int)ntohl(nid_n);
+
+    char rip[INET_ADDRSTRLEN];
+    inet_ntop(AF_INET, &from.sin_addr, rip, sizeof(rip));
+    fprintf(stderr, "[+]: Relay server assigned network_id=%d (from %s:%d)\n",
+            network_id, rip, ntohs(from.sin_port));
+
+    close(sock);
+    return network_id;
 }
 
 static int accept_request() {
@@ -242,18 +312,11 @@ static int remove_nodedata_from_list(struct nodedata_list *list, int index) {
     return 0;
 }
 
-static int distribute_nodedata_list(const struct nodedata_list *list) {
-    fprintf(stderr, "[+]: Distributing nodedata_list to member nodes and relay server\n");
+static int send_nodedata_list_to_members(const struct nodedata_list *list) {
     if (!list) {
-        fprintf(stderr, "[-]: distribute_nodedata_list(): list is NULL\n");
-        return -1;
-    }
-    if (list->current_size < 0 || list->max_size <= 0) {
-        fprintf(stderr, "[-]: distribute_nodedata_list(): invalid list sizes\n");
         return -1;
     }
 
-    // 送信サイズはヘッダ + 現在要素数ぶんの可変配列
     size_t payload_len = sizeof(struct nodedata_list) +
                          sizeof(struct nodedata) * (size_t)list->current_size;
 
@@ -264,8 +327,10 @@ static int distribute_nodedata_list(const struct nodedata_list *list) {
 
     int failures = 0;
     for (int i = 0; i < list->current_size; i++) {
-        uint32_t ip = list->nodedatas[i].ipaddress; // network byte order (uint32_t)
-        if (ip == 0) continue; // 不正IPはスキップ
+        uint32_t ip = list->nodedatas[i].ipaddress;
+        if (ip == 0) {
+            continue;
+        }
 
         struct sockaddr_in dst;
         memset(&dst, 0, sizeof(dst));
@@ -291,10 +356,7 @@ static int distribute_nodedata_list(const struct nodedata_list *list) {
     return failures ? -1 : 0;
 }
 
-static int request_join_huge_cluster() {
-    // 中継サーバにクラスタ参加要求: HELLO を送り、network_id(uint32_t)を受け取る
-    fprintf(stderr, "[+]: Requesting to join huge cluster via relay server\n");
-
+static int relay_request_ready_for_nodedata_list(void) {
     int sock = wrapped_socket(AF_INET, SOCK_DGRAM, 0);
     if (sock < 0) {
         return -1;
@@ -305,51 +367,111 @@ static int request_join_huge_cluster() {
     relay.sin_family = AF_INET;
     relay.sin_port = htons(CTRL_MSG_PORT);
     if (inet_pton(AF_INET, RELAY_SERVER_IP, &relay.sin_addr) != 1) {
+        fprintf(stderr, "[-]: inet_pton failed for %s\n", RELAY_SERVER_IP);
+        close(sock);
+        return -1;
+    }
+
+    size_t ctrl_len = strlen(READY_SEND_NODEDATA_LIST_MSG);
+    if (sendto(sock, READY_SEND_NODEDATA_LIST_MSG, ctrl_len, 0,
+               (struct sockaddr *)&relay, sizeof(relay)) < 0) {
+        perror("[-]: sendto(READY_SEND_NODEDATA_LIST_MSG)");
+        close(sock);
+        return -1;
+    }
+
+    char ack[128];
+    struct sockaddr_in from;
+    socklen_t fromlen = sizeof(from);
+    int r = wrapped_recvfrom(sock, ack, sizeof(ack) - 1, 0,
+                             (struct sockaddr *)&from, &fromlen);
+    if (r <= 0) {
+        close(sock);
+        return -1;
+    }
+    ack[r] = '\0';
+    if (strcmp(ack, READY_RECV_NODEDATA_LIST_MSG) != 0) {
+        fprintf(stderr, "[-]: Unexpected ack from relay: '%s'\n", ack);
+        close(sock);
+        return -1;
+    }
+
+    close(sock);
+    return 0;
+}
+
+static int send_nodedata_list_to_relay_server(const struct nodedata_list *list) {
+    fprintf(stderr, "[+]: Sending nodedata_list to relay server\n");
+    if (!list) {
+        fprintf(stderr, "[-]: send_nodedata_list_to_relay_server(): list is NULL\n");
+        return -1;
+    }
+
+    // 送信サイズはヘッダ + 現在要素数ぶんの可変配列
+    size_t payload_len = sizeof(struct nodedata_list) +
+                         sizeof(struct nodedata) * (size_t)list->current_size;
+
+    int sock = wrapped_socket(AF_INET, SOCK_DGRAM, 0);
+    if (sock < 0) {
+        return -1;
+    }
+
+    struct sockaddr_in relay;
+    memset(&relay, 0, sizeof(relay));
+    relay.sin_family = AF_INET;
+    relay.sin_port = htons(NODEDATA_LIST_PORT);
+    if (inet_pton(AF_INET, RELAY_SERVER_IP, &relay.sin_addr) != 1) {
         fprintf(stderr, "[-]: inet_pton failed for RELAY_SERVER_IP=%s\n", RELAY_SERVER_IP);
         close(sock);
         return -1;
     }
 
-    size_t msglen = strlen(HELLO_RELAY_SERVER_MSG);
-    if (sendto(sock, HELLO_RELAY_SERVER_MSG, msglen, 0,
-               (struct sockaddr *)&relay, sizeof(relay)) < 0) {
-        perror("[-]: sendto(HELLO_RELAY_SERVER_MSG)");
+    ssize_t n = sendto(sock, list, payload_len, 0,
+                       (struct sockaddr *)&relay, sizeof(relay));
+    if (n < 0 || (size_t)n != payload_len) {
+        perror("[-]: sendto(nodedata_list to relay server)");
         close(sock);
         return -1;
     }
 
-    uint32_t nid_n = 0;
-    struct sockaddr_in from;
-    socklen_t fromlen = sizeof(from);
-    int r = wrapped_recvfrom(sock, &nid_n, sizeof(nid_n), 0,
-                              (struct sockaddr *)&from, &fromlen);
-    if (r <= 0) {
-        close(sock);
-        return -1;
-    }
-    if (r != (int)sizeof(nid_n)) {
-        fprintf(stderr, "[-]: unexpected reply size: %d (expected %zu)\n", r, sizeof(nid_n));
-        close(sock);
-        return -1;
-    }
-
-    int network_id = (int)ntohl(nid_n);
-
-    char rip[INET_ADDRSTRLEN];
-    inet_ntop(AF_INET, &from.sin_addr, rip, sizeof(rip));
-    fprintf(stderr, "[+]: Relay server assigned network_id=%d (from %s:%d)\n",
-            network_id, rip, ntohs(from.sin_port));
+    fprintf(stderr, "[+]: Sent nodedata_list (count=%d) to relay server %s:%d\n",
+            list->current_size, RELAY_SERVER_IP, NODEDATA_LIST_PORT);
 
     close(sock);
-    return network_id;
+    return 0;
+}
+
+static int distribute_nodedata_list(const struct nodedata_list *list) {
+    fprintf(stderr, "[+]: Distributing nodedata_list to member nodes and relay server\n");
+    if (!list || list->current_size < 0 || list->max_size <= 0) {
+        fprintf(stderr, "[-]: distribute_nodedata_list(): invalid list\n");
+        return -1;
+    }
+
+    if (send_nodedata_list_to_members(list) < 0) {
+        fprintf(stderr, "[-]: Some member deliveries failed\n");
+        return -1;
+    }
+
+    if (relay_request_ready_for_nodedata_list() < 0) {
+        return -1;
+    }
+    if (send_nodedata_list_to_relay_server(list) < 0) {
+        return -1;
+    }
+    return 0;
 }
 
 static int send_nodeinfo_database() {
     // メンバノードにノード情報データベース送信
+    return 0;
 }
 
 int run_master_node_procedure() {
     fprintf(stderr, "[+]: Start master node procedure\n");
+
+    // allow overriding RELAY_SERVER_IP via environment
+    init_relay_server_ip();
 
     // nodedata_listの作成（自ノード情報を格納）
     struct nodedata_list *nd_list = create_nodedata_list();
@@ -358,13 +480,20 @@ int run_master_node_procedure() {
         return -1;
     }
 
-    if (request_join_huge_cluster() < 0) {
+    int network_id = request_join_huge_cluster();
+    if (network_id < 0) {
         fprintf(stderr, "[-]: Failed to join huge cluster via relay server\n");
         return -1;
     }
+    nd_list->network_id = network_id;
 
     while(1){
         int request_code = accept_request();
+        
+        if(request_code < 0){
+            fprintf(stderr, "[-]: Error in accepting request\n");
+            return -1;
+        }
         
         // メンバノードからノード登録要求を受信したら
         if(request_code == JOIN_REQUEST_CODE){
@@ -381,11 +510,8 @@ int run_master_node_procedure() {
                 return -1;
             }
             fprintf(stderr, "[+]: Successfully added nodedata to list (current size: %d)\n", nd_list->current_size);
-            if (print_nodedata_list(nd_list) < 0) {
-                fprintf(stderr, "[-]: Failed to print nodedata list\n");
-                return -1;
-            }
-            if(distribute_nodedata_list(nd_list) < 0){   // メンバノードと中継サーバの両方にnodedata_listを送る。
+            print_nodedata_list(nd_list);
+            if(distribute_nodedata_list(nd_list) < 0){
                 fprintf(stderr, "[-]: Failed to send nodedata_list\n");
                 return -1;
             }

@@ -8,13 +8,19 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 
-#define HELLO_RELAY_SERVER_MSG "Hello_relay_server!"
-#define Welcome_CLUSTER_MSG "Welcome_cluster!"
+static const char HELLO_RELAY_SERVER_MSG[]        = "Hello_relay_server!";
+static const char READY_SEND_NODEDATA_LIST_MSG[]  = "Ready_to_send_nodedata_list";
+static const char READY_RECV_NODEDATA_LIST_MSG[]  = "Ready_to_recv_nodedata_list";
 
-#define CTRL_MSG_PORT 8000
-#define NODEDATA_LIST_PORT 8002
+static const int CTRL_MSG_PORT      = 8000;
+static const int NODEDATA_LIST_PORT = 8002;
 
 int network_id = 1;
+
+enum {
+    JOIN_REQUEST_CODE = 1,
+    RECV_NODEDATA_LIST_REQUEST_CODE = 2,
+};
 
 struct nodedata {
     int ipaddress;
@@ -43,7 +49,7 @@ struct nodeinfo_database {
     struct nodeinfo_database_element elements[];
 };
 
-int accept_join_request() {
+int accept_request() {
     // クラスタ参加要求受信（UDP、ソケットは一度だけ初期化）
     static int sock = -1;
     static int inited = 0;
@@ -82,22 +88,32 @@ int accept_join_request() {
     char ipstr[INET_ADDRSTRLEN];
     inet_ntop(AF_INET, &client.sin_addr, ipstr, sizeof(ipstr));
 
-    if (strcmp(buf, HELLO_RELAY_SERVER_MSG) != 0) {
+    if (strcmp(buf, HELLO_RELAY_SERVER_MSG) == 0) {
+        // a. HELLO: ネットワークIDを返信し、インクリメントして JOIN_REQUEST_CODE を返す
+        uint32_t nid_n = htonl((uint32_t)network_id);
+        if (sendto(sock, &nid_n, sizeof(nid_n), 0, (struct sockaddr *)&client, clen) < 0) {
+            perror("[-]: sendto(accept_join_request)");
+            return -1;
+        }
+        fprintf(stderr, "[+]: HELLO from %s:%d -> assigned network_id=%d\n",
+                ipstr, ntohs(client.sin_port), network_id);
+        network_id++;
+        return JOIN_REQUEST_CODE;
+    } else if (strcmp(buf, READY_SEND_NODEDATA_LIST_MSG) == 0) {
+        // b. READY_SEND_NODEDATA_LIST: READY_RECV を返信して RECV_NODEDATA_LIST_REQUEST_CODE を返す
+        if (sendto(sock, READY_RECV_NODEDATA_LIST_MSG, strlen(READY_RECV_NODEDATA_LIST_MSG), 0,
+                   (struct sockaddr *)&client, clen) < 0) {
+            perror("[-]: sendto(READY_RECV_NODEDATA_LIST_MSG)");
+            return -1;
+        }
+        fprintf(stderr, "[+]: READY_SEND from %s:%d -> replied READY_RECV\n",
+                ipstr, ntohs(client.sin_port));
+        return RECV_NODEDATA_LIST_REQUEST_CODE;
+    } else {
         fprintf(stderr, "[-]: Unexpected message from %s:%d: '%s'\n",
                 ipstr, ntohs(client.sin_port), buf);
         return -1;
     }
-
-    uint32_t nid_n = htonl((uint32_t)network_id);
-    if (sendto(sock, &nid_n, sizeof(nid_n), 0, (struct sockaddr *)&client, clen) < 0) {
-        perror("[-]: sendto(accept_join_request)");
-        return -1;
-    }
-
-    fprintf(stderr, "[+]: Assigned network_id=%d to %s:%d\n",
-            network_id, ipstr, ntohs(client.sin_port));
-    network_id++;
-    return 0;
 }
 
 struct nodedata_list *receive_nodedata_list(void) {
@@ -175,46 +191,8 @@ struct nodedata_list *receive_nodedata_list(void) {
     return (struct nodedata_list *)buf;
 }
 
-// 必要ポート（node 側の既定値）
-#ifndef CTRL_MSG_PORT
-#define CTRL_MSG_PORT 8000
-#endif
-#ifndef NODEDATA_PORT
-#define NODEDATA_PORT 8001
-#endif
-
 struct nodeinfo_database *update_nodeinfo_database(const struct nodedata_list *list) {
-    if (!list) {
-        fprintf(stderr, "[-]: update_nodeinfo_database: list is NULL\n");
-        return NULL;
-    }
-
-    int count = list->current_size;
-    if (count < 0) {
-        fprintf(stderr, "[-]: update_nodeinfo_database: negative count %d\n", count);
-        return NULL;
-    }
-
-    size_t sz = sizeof(struct nodeinfo_database) + sizeof(struct nodeinfo_database_element) * (size_t)count;
-    struct nodeinfo_database *db = (struct nodeinfo_database *)malloc(sz);
-    if (!db) {
-        fprintf(stderr, "[-]: malloc failed in update_nodeinfo_database (size=%zu)\n", sz);
-        return NULL;
-    }
-
-    db->max_size = count;
-    db->current_size = count;
-    for (int i = 0; i < count; i++) {
-        db->elements[i].network_id = -1; // ここでは不明。必要なら accept_join_request での割り当てを紐づける
-        db->elements[i].ipaddress = (uint32_t)list->nodedatas[i].ipaddress;
-        db->elements[i].userid = list->nodedatas[i].userid;
-        db->elements[i].control_port_num = CTRL_MSG_PORT;
-        db->elements[i].message_port_num = NODEDATA_PORT;
-        db->elements[i].cpu_core_num = list->nodedatas[i].cpu_core_num;
-    }
-
-    fprintf(stderr, "[+]: Built nodeinfo_database (count=%d)\n", count);
-    return db;
+    return NULL;
 }
 
 int send_nodeinfo_database() {
@@ -226,27 +204,36 @@ int main(){
     fprintf(stderr, "[+]: Start nodeinfo database manager\n");
 
     while(1){
-        if(accept_join_request() < 0){
+        int request_code = accept_request();
+
+        if(request_code < 0){
             fprintf(stderr, "[-]: Error in accepting join request\n");
             continue;
         }
-        /*struct nodedata_list *list = receive_nodedata_list();
-        if(!list){
-            fprintf(stderr, "[-]: Error in receiving nodedata list\n");
+        
+        if(request_code == JOIN_REQUEST_CODE){
+            // 現状JOIN_REQUEST_CODEは特に処理しない
             continue;
-        }
-        struct nodeinfo_database *db = update_nodeinfo_database(list);
-        free(list);
-        if(!db){
-            fprintf(stderr, "[-]: Error in updating nodeinfo database\n");
-            continue;
-        }
-        if(send_nodeinfo_database() < 0){
-            fprintf(stderr, "[-]: Error in sending nodeinfo database\n");
+        } else if(request_code == RECV_NODEDATA_LIST_REQUEST_CODE){
+            // ノード情報リスト受信要求
+            struct nodedata_list *list = receive_nodedata_list();
+            if(!list){
+                fprintf(stderr, "[-]: Error in receiving nodedata list\n");
+                continue;
+            }
+            struct nodeinfo_database *db = update_nodeinfo_database(list);
+            free(list);
+            if(!db){
+                fprintf(stderr, "[-]: Error in updating nodeinfo database\n");
+                continue;
+            }
+            if(send_nodeinfo_database() < 0){
+                fprintf(stderr, "[-]: Error in sending nodeinfo database\n");
+                free(db);
+                continue;
+            }
             free(db);
-            continue;
-        }
-        free(db);*/
+        }        
     }
 
     return 0;

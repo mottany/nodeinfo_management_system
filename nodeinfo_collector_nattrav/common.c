@@ -95,10 +95,10 @@ struct nodedata get_my_nodedata() {
     return nd;
 }
 
-int print_nodedata_list(const struct nodedata_list *list) {
+void print_nodedata_list(const struct nodedata_list *list) {
     if (!list) {
         fprintf(stderr, "[-]: print_nodedata_list(): list is NULL\n");
-        return -1;
+        return;
     }
     printf("Nodedata List (current size: %d, max size: %d):\n",
            list->current_size, list->max_size);
@@ -107,13 +107,13 @@ int print_nodedata_list(const struct nodedata_list *list) {
         printf("  Node %d: IP=%d, UserID=%d, CPU Cores=%d\n",
                i, nd->ipaddress, nd->userid, nd->cpu_core_num);
     }
-    return 0;
+    return;
 }
 
-int print_nodeinfo_database(const struct nodeinfo_database *db) {
+void print_nodeinfo_database(const struct nodeinfo_database *db) {
     if (!db) {
         fprintf(stderr, "[-]: print_nodeinfo_database(): db is NULL\n");
-        return -1;
+        return;
     }
     printf("Nodeinfo Database (current size: %d, max size: %d):\n",
            db->current_size, db->max_size);
@@ -123,7 +123,7 @@ int print_nodeinfo_database(const struct nodeinfo_database *db) {
                i, el->network_id, el->ipaddress, el->userid,
                el->control_port_num, el->message_port_num, el->cpu_core_num);
     }
-    return 0;
+    return;
 }
 
 int update_nodeinfo(struct nodedata_list *list) {
