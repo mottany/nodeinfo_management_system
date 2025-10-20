@@ -1,3 +1,11 @@
+#include <stdio.h>
+#include <errno.h>
+#include <unistd.h>
+#include <sys/socket.h>
+#include <sys/epoll.h>
+#include <sys/time.h>
+
+#include "common.h"
 #include "sock_wrapper_functions.h"
 
 int wrapped_socket(int domain, int type, int protocol)
@@ -60,12 +68,24 @@ int wrapped_send(int sockfd, void *buf, size_t len, int flags)
   return r;
 }
 
+int wrapped_sendto(int sockfd, void *buf, size_t len, int flags,
+                   struct sockaddr *dest_addr, socklen_t addrlen)
+{
+  int r;
+  if ((r = sendto(sockfd, buf, len, flags, dest_addr, addrlen)) < 0) {
+    perror("[-]: sendto()");
+  }
+  return r;
+}
+
 int wrapped_recv(int sockfd, void *buf, size_t len, int flags)
 {
   int r;
   if ((r = recv(sockfd, buf, len, flags)) < 0) {
+    if (errno == EWOULDBLOCK || errno == EAGAIN) {
+      return IS_TIMEOUT;
+    }
     perror("[-]: recv()");
-    // printf("%d\n", errno);
   }
   return r;
 }
@@ -96,10 +116,24 @@ int wrapped_recvfrom(int sockfd, void *buf, size_t len, int flags,
   int r = -1;
   r = recvfrom(sockfd, buf, len, 0, src_addr, addrlen);
   if (r < 0) {
+    if (errno == EWOULDBLOCK || errno == EAGAIN) {
+      return IS_TIMEOUT;
+    }
     perror("[-]: recvfrom()");
-    // printf("%d\n", errno);
   }
   return r;
+}
+
+int wrapped_set_recv_timeout(int sock, int sec, int usec)
+{
+  struct timeval tv;
+  tv.tv_sec = sec;
+  tv.tv_usec = usec;
+  if (setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) < 0) {
+    perror("[-]: setsockopt(SO_RCVTIMEO)");
+    return -1;
+  }
+  return 0;
 }
 
 int wrapped_epoll_create(int size)
@@ -132,4 +166,3 @@ int wrapped_epoll_wait(int epfd, struct epoll_event *ev,
   }
   return numfds;
 }
-

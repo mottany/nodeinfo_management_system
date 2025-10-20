@@ -23,6 +23,10 @@ static const char READY_RECV_NODEDATA_LIST_MSG[]  = "Ready_to_recv_nodedata_list
 
 static char RELAY_SERVER_IP[INET_ADDRSTRLEN] = "160.12.172.77";
 
+// Relay 応答受信のタイムアウト（必要に応じて調整）
+static const int RELAY_RECV_TIMEOUT_SEC  = 2;
+static const int RELAY_RECV_TIMEOUT_USEC = 0;
+
 static void init_relay_server_ip(void) {
     const char *env = getenv("RELAY_SERVER_IP");
     if (env && *env) {
@@ -78,6 +82,10 @@ static int request_join_huge_cluster() {
         return -1;
     }
 
+    // 受信タイムアウト設定
+    // 受信タイムアウト設定（ラッパー経由）
+    wrapped_set_recv_timeout(sock, RELAY_RECV_TIMEOUT_SEC, RELAY_RECV_TIMEOUT_USEC);
+
     struct sockaddr_in relay;
     memset(&relay, 0, sizeof(relay));
     relay.sin_family = AF_INET;
@@ -101,7 +109,10 @@ static int request_join_huge_cluster() {
     socklen_t fromlen = sizeof(from);
     int r = wrapped_recvfrom(sock, &nid_n, sizeof(nid_n), 0,
                               (struct sockaddr *)&from, &fromlen);
-    if (r <= 0) {
+    if (r == IS_TIMEOUT) {
+        close(sock);
+        return IS_TIMEOUT;
+    } else if (r <= 0) {
         close(sock);
         return -1;
     }
@@ -362,6 +373,9 @@ static int relay_request_ready_for_nodedata_list(void) {
         return -1;
     }
 
+    // 受信タイムアウト（リレー応答待ちに適用）
+    wrapped_set_recv_timeout(sock, RELAY_RECV_TIMEOUT_SEC, RELAY_RECV_TIMEOUT_USEC);
+
     struct sockaddr_in relay;
     memset(&relay, 0, sizeof(relay));
     relay.sin_family = AF_INET;
@@ -385,7 +399,10 @@ static int relay_request_ready_for_nodedata_list(void) {
     socklen_t fromlen = sizeof(from);
     int r = wrapped_recvfrom(sock, ack, sizeof(ack) - 1, 0,
                              (struct sockaddr *)&from, &fromlen);
-    if (r <= 0) {
+    if (r == IS_TIMEOUT) {
+        close(sock);
+        return IS_TIMEOUT;
+    } else if (r <= 0) {
         close(sock);
         return -1;
     }
@@ -452,9 +469,21 @@ static int distribute_nodedata_list(const struct nodedata_list *list) {
         fprintf(stderr, "[-]: Some member deliveries failed\n");
         return -1;
     }
+    // リレー参加がタイムアウトしている場合は、リレー関連の送信をスキップ
+    if (list->network_id == IS_TIMEOUT) {
+        fprintf(stderr, "[!]: Skipping relay distribution due to previous join timeout\n");
+        return 0;
+    }
 
-    if (relay_request_ready_for_nodedata_list() < 0) {
-        return -1;
+    {
+        int r = relay_request_ready_for_nodedata_list();
+        if (r == IS_TIMEOUT) {
+            fprintf(stderr, "[!]: Relay ready timeout; skip sending to relay this round\n");
+            return 0;
+        }
+        if (r < 0) {
+            return -1;
+        }
     }
     if (send_nodedata_list_to_relay_server(list) < 0) {
         return -1;
@@ -481,11 +510,15 @@ int run_master_node_procedure() {
     }
 
     int network_id = request_join_huge_cluster();
-    if (network_id < 0) {
+    if (network_id == IS_TIMEOUT) {
+        fprintf(stderr, "[!]: Relay join timed out; will skip relay distribution.\n");
+        nd_list->network_id = IS_TIMEOUT;
+    } else if (network_id < 0) {
         fprintf(stderr, "[-]: Failed to join huge cluster via relay server\n");
         return -1;
+    } else {
+        nd_list->network_id = network_id;
     }
-    nd_list->network_id = network_id;
 
     while(1){
         int request_code = accept_request();

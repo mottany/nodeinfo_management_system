@@ -38,11 +38,8 @@ static int request_join_cluster(struct sockaddr_in *master_node_addr) {
     int broadcast_enable = 1;
     setsockopt(broadcast_sock, SOL_SOCKET, SO_BROADCAST, &broadcast_enable, sizeof(broadcast_enable));
 
-    // 受信タイムアウト設定
-    struct timeval timeout;
-    timeout.tv_sec = RECV_TIMEOUT_SEC;
-    timeout.tv_usec = RECV_TIMEOUT_USEC;
-    setsockopt(broadcast_sock, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
+    // 受信タイムアウト設定（ラッパー経由）
+    wrapped_set_recv_timeout(broadcast_sock, RECV_TIMEOUT_SEC, RECV_TIMEOUT_USEC);
 
     // ブロードキャストアドレス設定
     memset(&broadcast_addr, 0, sizeof(broadcast_addr));
@@ -51,9 +48,8 @@ static int request_join_cluster(struct sockaddr_in *master_node_addr) {
     broadcast_addr.sin_addr.s_addr = htonl(INADDR_BROADCAST);
 
     // ブロードキャストメッセージ送信
-    if (sendto(broadcast_sock, HELLO_CLUSTER_MSG, strlen(HELLO_CLUSTER_MSG), 0,
+    if (wrapped_sendto(broadcast_sock, (void*)HELLO_CLUSTER_MSG, strlen(HELLO_CLUSTER_MSG), 0,
                (struct sockaddr *)&broadcast_addr, sizeof(broadcast_addr)) < 0) {
-        perror("[-]: sendto failed");
         close(broadcast_sock);
         return -1;
     }
@@ -68,7 +64,7 @@ static int request_join_cluster(struct sockaddr_in *master_node_addr) {
         *master_node_addr = master_addr;
         close(broadcast_sock);
         return recv_len;
-    } else if (recv_len < 0 && errno == EWOULDBLOCK) {
+    } else if (recv_len == IS_TIMEOUT) {
         fprintf(stderr, "[-]: Timeout waiting for master node response\n");
         close(broadcast_sock);
         return IS_TIMEOUT;
