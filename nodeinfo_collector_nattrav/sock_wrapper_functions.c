@@ -4,6 +4,9 @@
 #include <sys/socket.h>
 #include <sys/epoll.h>
 #include <sys/time.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <sys/epoll.h>
 
 #include "common.h"
 #include "sock_wrapper_functions.h"

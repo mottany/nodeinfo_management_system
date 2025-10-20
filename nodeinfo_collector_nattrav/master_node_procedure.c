@@ -6,6 +6,7 @@
 #include <errno.h>
 #include <sys/time.h>
 #include <stdlib.h>
+#include <unistd.h>
 
 #include "common.h"
 #include "master_node_procedure.h"
