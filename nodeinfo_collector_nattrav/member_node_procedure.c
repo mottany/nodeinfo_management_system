@@ -17,7 +17,7 @@
 #include "sock_wrapper_functions.h"
 #include "member_node_procedure.h"
 
-static const int RECV_TIMEOUT_SEC = 2;
+static const int RECV_TIMEOUT_SEC = 1;
 static const int RECV_TIMEOUT_USEC = 0;
 
 static int request_join_cluster(struct sockaddr_in *master_node_addr) {
@@ -145,10 +145,8 @@ static int send_my_nodedata(struct sockaddr_in *master_node_addr) {
     return 0;
 }
 
-static int receive_nodedata_list(struct nodedata_list **out) {
+static struct nodedata_list *receive_nodedata_list(void) {
     fprintf(stderr, "[+]: Receiving nodedata list from master node\n");
-    if (!out) return -1;
-    *out = NULL;
 
     int sock;
     struct sockaddr_in addr, sender_addr;
@@ -156,13 +154,13 @@ static int receive_nodedata_list(struct nodedata_list **out) {
     // 可変長に対応するため十分大きい受信バッファを確保（最大UDPペイロード近辺）
     enum { MAX_UDP_PAYLOAD = 65535 };
     char *recv_buf = (char *)malloc(MAX_UDP_PAYLOAD);
-    if (!recv_buf) return -1;
+    if (!recv_buf) return NULL;
 
     // ソケット作成
     sock = wrapped_socket(AF_INET, SOCK_DGRAM, 0);
     if (sock < 0) {
         free(recv_buf);
-        return -1;
+        return NULL;
     }
 
     // バインド
@@ -173,30 +171,29 @@ static int receive_nodedata_list(struct nodedata_list **out) {
     if (wrapped_bind(sock, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
         close(sock);
         free(recv_buf);
-        return -1;
+        return NULL;
     }
 
     // ノード情報リスト受信（1Datagramで全体が届く想定）
     int recv_len = wrapped_recvfrom(sock, recv_buf, MAX_UDP_PAYLOAD, 0,
                                     (struct sockaddr *)&sender_addr, &sender_addr_len);
-    if (recv_len < 0) {
+    if (recv_len <= 0) {
         close(sock);
         free(recv_buf);
-        return -1;
+        return NULL;
     }
     if (recv_len < (int)sizeof(struct nodedata_list)) {
         fprintf(stderr, "[-]: Received too short nodedata_list (%d bytes)\n", recv_len);
         close(sock);
         free(recv_buf);
-        return -1;
+        return NULL;
     }
 
-    // 受信サイズに合わせてぴったり確保し直し
     struct nodedata_list *list = (struct nodedata_list *)malloc((size_t)recv_len);
     if (!list) {
         close(sock);
         free(recv_buf);
-        return -1;
+        return NULL;
     }
     memcpy(list, recv_buf, (size_t)recv_len);
 
@@ -209,13 +206,12 @@ static int receive_nodedata_list(struct nodedata_list **out) {
         close(sock);
         free(recv_buf);
         free(list);
-        return -1;
+        return NULL;
     }
 
     close(sock);
     free(recv_buf);
-    *out = list;
-    return 0;
+    return list;
 }
 
 int run_member_node_procedure(){
@@ -244,8 +240,8 @@ int run_member_node_procedure(){
     
     // マスターノードからのnodedata_listとnodeinfo_databaseを受信
     while (1) {
-        struct nodedata_list *received_list = NULL;
-        if (receive_nodedata_list(&received_list) < 0) {
+        struct nodedata_list *received_list = receive_nodedata_list();
+        if (!received_list) {
             fprintf(stderr, "[-]: Failed to receive nodedata list\n");
             return -1;
         }

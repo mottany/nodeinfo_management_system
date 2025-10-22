@@ -18,7 +18,6 @@ int main(void) {
         }
 
         if (request_code == JOIN_REQUEST_CODE) {
-            // 現状 JOIN_REQUEST_CODE は特に処理しない
             continue;
         } else if (request_code == RECV_NODEDATA_LIST_REQUEST_CODE) {
             // ノード情報リスト受信要求

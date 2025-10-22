@@ -24,7 +24,6 @@ static const char READY_RECV_NODEDATA_LIST_MSG[]  = "Ready_to_recv_nodedata_list
 
 static char RELAY_SERVER_IP[INET_ADDRSTRLEN] = "160.12.172.77";
 
-// Relay 応答受信のタイムアウト（必要に応じて調整）
 static const int RELAY_RECV_TIMEOUT_SEC  = 2;
 static const int RELAY_RECV_TIMEOUT_USEC = 0;
 
@@ -208,13 +207,12 @@ static int accept_request() {
     }
 }
 
-static int receive_nodedata(struct nodedata *out) {
+static struct nodedata receive_nodedata() {
     fprintf(stderr, "[+]: Receiving nodedata from member node\n");
 
-    if (!out) {
-        fprintf(stderr, "[-]: receive_nodedata(): out is NULL\n");
-        return -1;
-    }
+    struct nodedata result;
+    memset(&result, 0, sizeof(result));
+    result.userid = -1; // 明示的に無効値をセット
 
     int listen_sock, conn_sock;
     struct sockaddr_in addr, client_addr;
@@ -223,7 +221,7 @@ static int receive_nodedata(struct nodedata *out) {
 
     listen_sock = wrapped_socket(AF_INET, SOCK_STREAM, 0);
     if (listen_sock < 0) {
-        return -1;
+        return result;
     }
 
     setsockopt(listen_sock, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
@@ -235,36 +233,38 @@ static int receive_nodedata(struct nodedata *out) {
 
     if (wrapped_bind(listen_sock, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
         close(listen_sock);
-        return -1;
+        return result;
     }
 
     if (wrapped_listen(listen_sock, 1) < 0) {
         close(listen_sock);
-        return -1;
+        return result;
     }
 
     conn_sock = wrapped_accept(listen_sock, (struct sockaddr *)&client_addr, &client_len);
     if (conn_sock < 0) {
         close(listen_sock);
-        return -1;
+        return result;
     }
 
     // 構造体サイズぶんを受信（短い受信に備えてループ）
-    size_t need = sizeof(*out);
+    size_t need = sizeof(result);
     size_t got = 0;
     while (got < need) {
-        int r = wrapped_recv(conn_sock, ((char *)out) + got, need - got, 0);
+        int r = wrapped_recv(conn_sock, ((char *)&result) + got, need - got, 0);
         if (r <= 0) {
             close(conn_sock);
             close(listen_sock);
-            return -1;
+            memset(&result, 0, sizeof(result));
+            result.userid = -1;
+            return result;
         }
         got += (size_t)r;
     }
 
     close(conn_sock);
     close(listen_sock);
-    return 0;
+    return result;
 }
 
 static int resize_nodedata_list(struct nodedata_list *list) {
@@ -522,56 +522,49 @@ int run_master_node_procedure() {
     }
 
     while(1){
-        int request_code = accept_request();
-        
+        int request_code = accept_request();        
         if(request_code < 0){
             fprintf(stderr, "[-]: Error in accepting request\n");
             return -1;
         }
         
+        struct nodedata nd = receive_nodedata();
+        if (nd.ipaddress == 0 || /*nd.userid < 0 ||*/ nd.cpu_core_num <= 0) {
+            fprintf(stderr, "[-]: Failed to receive valid nodedata from member node\n");
+            return -1;
+        }
+        fprintf(stderr, "[+]: Successfully received nodedata from %s (uid=%d, cpu=%d)\n",
+            inet_ntoa(*(struct in_addr *)&nd.ipaddress), nd.userid, nd.cpu_core_num);
+        
         // メンバノードからノード登録要求を受信したら
         if(request_code == JOIN_REQUEST_CODE){
-            struct nodedata nd;
-            memset(&nd, 0, sizeof(nd));
-            if(receive_nodedata(&nd) < 0){
-                 fprintf(stderr, "[-]: Failed to receive nodedata from member node\n");
-                 return -1;
-            }
-            fprintf(stderr, "[+]: Successfully received nodedata from %s (uid=%d, cpu=%d)\n",
-                    inet_ntoa(*(struct in_addr *)&nd.ipaddress), nd.userid, nd.cpu_core_num);
             if(add_nodedata_to_list(&nd, nd_list) < 0){
                 fprintf(stderr, "[-]: Failed to add nodedata to list\n");
                 return -1;
             }
             fprintf(stderr, "[+]: Successfully added nodedata to list (current size: %d)\n", nd_list->current_size);
-            print_nodedata_list(nd_list);
-            if(distribute_nodedata_list(nd_list) < 0){
-                fprintf(stderr, "[-]: Failed to send nodedata_list\n");
-                return -1;
-            }
-            fprintf(stderr, "[+]: Successfully sent nodedata_list to all member nodes and relay server\n");
-            if(update_nodeinfo(nd_list) < 0) {
-                fprintf(stderr, "[-]: Failed to update nodeinfo\n");
-                return -1;
-            }
-            if(update_hostfile(nd_list) < 0) {
-                fprintf(stderr, "[-]: Failed to update hostfile\n");
-                return -1;
-            }
-            fprintf(stderr, "[+]: Successfully updated nodeinfo and hostfile\n");
         }
+        
         // メンバノードからノード脱退要求を受信したら
-        /*else if(request_code == LEAVE_REQUEST_CODE){
-            receive_nodedata();
-            remove_nodedata_from_list();
-            distribute_nodedata_list();   // メンバノードと中継サーバの両方にnodedata_listを送る。
+        // else if (request_code == LEAVE_REQUEST_CODE){}
+        
+        print_nodedata_list(nd_list);
+        
+        if(distribute_nodedata_list(nd_list) < 0){
+            fprintf(stderr, "[-]: Failed to send nodedata_list\n");
+            return -1;
         }
-        // 中継サーバから「データベースを受け取れ」要求を受信したら
-        else if(request_code == READY_DB_REQUEST_CODE){
-            receive_nodeinfo_database();
-            send_nodeinfo_database();
-
-        }*/
+        fprintf(stderr, "[+]: Successfully sent nodedata_list to all member nodes and relay server\n");
+        
+        if(update_nodeinfo(nd_list) < 0) {
+            fprintf(stderr, "[-]: Failed to update nodeinfo\n");
+            return -1;
+        }
+        if(update_hostfile(nd_list) < 0) {
+            fprintf(stderr, "[-]: Failed to update hostfile\n");
+            return -1;
+        }
+        fprintf(stderr, "[+]: Successfully updated nodeinfo and hostfile\n");
     }
     
     return 0;
