@@ -71,15 +71,22 @@ struct nodedata_list *receive_nodedata_list(void) {
     fprintf(stderr, "[+]: Received nodedata_list (count=%d) from %s:%d\n",
             list->current_size, ipstr, ntohs(sender.sin_port));
 
-    for (int i = 0; i < list->current_size; i++) {
-        struct in_addr ia = { .s_addr = (uint32_t)list->nodedatas[i].ipaddress };
-        char nip[INET_ADDRSTRLEN];
-        inet_ntop(AF_INET, &ia, nip, sizeof(nip));
-        fprintf(stderr, "  Node %d: IP=%s, UID=%d, CPU=%d\n",
-                i, nip, list->nodedatas[i].userid, list->nodedatas[i].cpu_core_num);
-    }
-
     char *shrink = realloc(buf, (size_t)r);
     if (shrink) buf = shrink;
     return (struct nodedata_list *)buf;
+}
+
+void print_nodedata_list(const struct nodedata_list *list) {
+    if (!list) {
+        fprintf(stderr, "[-]: print_nodedata_list(): list is NULL\n");
+        return;
+    }
+    printf("Nodedata List (current size: %d, max size: %d):\n",
+           list->current_size, list->max_size);
+    for (int i = 0; i < list->current_size; i++) {
+        struct nodedata *nd = &list->nodedatas[i];
+        printf("  Node %d: IP=%d, UserID=%d, CPU Cores=%d\n",
+               i, nd->ipaddress, nd->userid, nd->cpu_core_num);
+    }
+    return;
 }

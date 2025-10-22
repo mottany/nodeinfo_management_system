@@ -27,6 +27,7 @@ int main(void) {
                 fprintf(stderr, "[-]: Error in receiving nodedata list\n");
                 continue;
             }
+            print_nodedata_list(list);
             db = update_nodeinfo_database(list);
             free(list);
             if (!db) {
