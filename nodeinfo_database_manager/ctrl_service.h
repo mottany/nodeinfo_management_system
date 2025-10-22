@@ -14,8 +14,7 @@ enum {
 // Reply to the last requester (captured in accept_request) with the current DB.
 // NAT を考慮し、受信に使った同じソケット/ポートから送信します。
 // ロジック:
-//  - db が NULL または current_size==0 の場合: ALREADY_UPTODATE_MSG を返す
-//  - それ以外: SEND_YOU_DB_MSG を返した後、DB スナップショットを 1 datagram で送信
+//  - 常に nodeinfo_database を 1 datagram で送信（db==NULL の場合はヘッダのみ current_size=0）
 int send_nodeinfo_database(const struct nodeinfo_database *db);
 
 #endif /* CTRL_SERVICE_H */

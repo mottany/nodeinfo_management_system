@@ -89,27 +89,18 @@ int send_nodeinfo_database(const struct nodeinfo_database *db) {
         fprintf(stderr, "[-]: send_nodeinfo_database: no requester context\n");
         return -1;
     }
-    if (!db || db->current_size <= 0) {
-        // Nothing to send or not built yet
-        if (sendto(g_ctrl_sock, ALREADY_UPTODATE_MSG, strlen(ALREADY_UPTODATE_MSG), 0,
-                   (struct sockaddr *)&g_last_client, g_last_client_len) < 0) {
-            perror("[-]: sendto(ALREADY_UPTODATE_MSG)");
-            return -1;
-        }
-        fprintf(stderr, "[+]: Sent ALREADY_UPTODATE to %s:%d\n",
-                inet_ntoa(g_last_client.sin_addr), ntohs(g_last_client.sin_port));
-        return 0;
-    }
 
-    if (sendto(g_ctrl_sock, SEND_YOU_DB_MSG, strlen(SEND_YOU_DB_MSG), 0,
-               (struct sockaddr *)&g_last_client, g_last_client_len) < 0) {
-        perror("[-]: sendto(SEND_YOU_DB_MSG)");
-        return -1;
+    // If db is NULL, send an empty header-only database (current_size=0)
+    struct nodeinfo_database empty_hdr;
+    const struct nodeinfo_database *payload = db ? db : &empty_hdr;
+    if (!db) {
+        empty_hdr.max_size = 0;
+        empty_hdr.current_size = 0;
     }
 
     size_t bytes = sizeof(struct nodeinfo_database)
-                 + sizeof(struct nodeinfo_database_element) * (size_t)db->current_size;
-    ssize_t s = sendto(g_ctrl_sock, db, bytes, 0,
+                 + sizeof(struct nodeinfo_database_element) * (size_t)payload->current_size;
+    ssize_t s = sendto(g_ctrl_sock, payload, bytes, 0,
                        (struct sockaddr *)&g_last_client, g_last_client_len);
     if (s < 0 || (size_t)s != bytes) {
         perror("[-]: sendto(nodeinfo_database)");
@@ -117,7 +108,7 @@ int send_nodeinfo_database(const struct nodeinfo_database *db) {
     }
 
     fprintf(stderr, "[+]: Sent nodeinfo_database (elements=%d, bytes=%zu) to %s:%d\n",
-            db->current_size, bytes,
+            payload->current_size, bytes,
             inet_ntoa(g_last_client.sin_addr), ntohs(g_last_client.sin_port));
     return 0;
 }

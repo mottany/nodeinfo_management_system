@@ -23,8 +23,6 @@ static const char HELLO_RELAY_SERVER_MSG[]       = "Hello_relay_server!";
 static const char READY_SEND_NODEDATA_LIST_MSG[] = "Ready_to_send_nodedata_list";
 static const char READY_RECV_NODEDATA_LIST_MSG[] = "Ready_to_recv_nodedata_list";
 static const char GIVE_ME_DB_MSG[]               = "Give_me_db";
-static const char ALREADY_UPTODATE_MSG[]         = "Already_uptodate";
-static const char SEND_YOU_DB_MSG[]              = "Send_you_db";
 
 static char RELAY_SERVER_IP[INET_ADDRSTRLEN] = "160.12.172.77";
 
@@ -528,58 +526,32 @@ static int request_nodeinfo_database(void) {
         return -1;
     }
 
-    // 2) Branch by the first reply
-    char ctrl[128];
-    struct sockaddr_in from;
-    socklen_t fromlen = sizeof(from);
-    int r = wrapped_recvfrom(sock, ctrl, sizeof(ctrl) - 1, 0, (struct sockaddr *)&from, &fromlen);
-    if (r == IS_TIMEOUT) {
-        fprintf(stderr, "[!]: request_nodeinfo_database timeout waiting for relay reply\n");
-        close(sock);
-        return IS_TIMEOUT;
-    } else if (r <= 0) {
+    // 2) Receive the DB datagram directly
+    int db_bytes = 0;
+    struct nodeinfo_database *db = receive_nodeinfo_database_on_socket(sock,
+                                                                      RELAY_RECV_TIMEOUT_SEC,
+                                                                      RELAY_RECV_TIMEOUT_USEC,
+                                                                      &db_bytes);
+    if (!db) {
+        if (db_bytes == IS_TIMEOUT) {
+            fprintf(stderr, "[!]: request_nodeinfo_database timed out receiving DB payload\n");
+            close(sock);
+            return IS_TIMEOUT;
+        }
         close(sock);
         return -1;
     }
-    ctrl[r] = '\0';
 
-    if (strcmp(ctrl, ALREADY_UPTODATE_MSG) == 0) {
-        fprintf(stderr, "[+]: nodeinfo_database is already uptodate\n");
-        close(sock);
-        return 0;
-    }
+    if (g_nodeinfo_db) free(g_nodeinfo_db);
+    g_nodeinfo_db = db;
+    g_nodeinfo_db_bytes = (size_t)db_bytes;
 
-    if (strcmp(ctrl, SEND_YOU_DB_MSG) == 0) {
-        int db_bytes = 0;
-        struct nodeinfo_database *db = receive_nodeinfo_database_on_socket(sock,
-                                                                          RELAY_RECV_TIMEOUT_SEC,
-                                                                          RELAY_RECV_TIMEOUT_USEC,
-                                                                          &db_bytes);
-        if (!db) {
-            if (db_bytes == IS_TIMEOUT) {
-                fprintf(stderr, "[!]: request_nodeinfo_database timed out receiving DB payload\n");
-                close(sock);
-                return IS_TIMEOUT;
-            }
-            close(sock);
-            return -1;
-        }
+    fprintf(stderr, "[+]: Updated in-memory nodeinfo_database (elements=%d, bytes=%zu)\n",
+            g_nodeinfo_db->current_size, g_nodeinfo_db_bytes);
+    print_nodeinfo_database(g_nodeinfo_db);
 
-        if (g_nodeinfo_db) free(g_nodeinfo_db);
-        g_nodeinfo_db = db;
-        g_nodeinfo_db_bytes = (size_t)db_bytes;
-
-        fprintf(stderr, "[+]: Updated in-memory nodeinfo_database (elements=%d, bytes=%zu)\n",
-                g_nodeinfo_db->current_size, g_nodeinfo_db_bytes);
-        print_nodeinfo_database(g_nodeinfo_db);
-
-        close(sock);
-        return 0;
-    }
-
-    fprintf(stderr, "[-]: Unexpected control reply from relay: '%s'\n", ctrl);
     close(sock);
-    return -1;
+    return 0;
 }
 
 static int distribute_nodeinfo_db() {
