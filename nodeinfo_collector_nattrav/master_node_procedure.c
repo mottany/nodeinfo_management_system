@@ -28,7 +28,7 @@ static char RELAY_SERVER_IP[INET_ADDRSTRLEN] = "160.12.172.77";
 
 static const int RELAY_RECV_TIMEOUT_SEC      = 1;
 static const int RELAY_RECV_TIMEOUT_USEC     = 0;
-static const int MEMBER_REQUEST_TIMEOUT_SEC  = 5;
+static const int MEMBER_REQUEST_TIMEOUT_SEC  = 9;
 static const int MEMBER_REQUEST_TIMEOUT_USEC = 0;
 
 // Hold the latest nodeinfo_database snapshot in memory
@@ -649,6 +649,10 @@ int run_master_node_procedure() {
             return -1;
         }
         fprintf(stderr, "[+]: Successfully updated nodeinfo and hostfile\n");
+        if(request_nodeinfo_database() < 0){
+            fprintf(stderr, "[-]: Failed to request nodeinfo_database\n");
+            return -1;
+        }
     }
     
     return 0;
