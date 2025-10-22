@@ -8,15 +8,18 @@
 #include "relay_protocol.h"
 #include "ctrl_service.h"
 
+// Keep control socket and last requester to reply on the same 5-tuple (NAT friendly)
+static int g_ctrl_sock = -1;
+static int g_ctrl_inited = 0;
+static struct sockaddr_in g_last_client;
+static socklen_t g_last_client_len = 0;
+
 int network_id = 1;
 
 int accept_request() {
-    static int sock = -1;
-    static int inited = 0;
-
-    if (!inited) {
-        sock = socket(AF_INET, SOCK_DGRAM, 0);
-        if (sock < 0) {
+    if (!g_ctrl_inited) {
+        g_ctrl_sock = socket(AF_INET, SOCK_DGRAM, 0);
+        if (g_ctrl_sock < 0) {
             perror("[-]: socket(accept_join_request)");
             return -1;
         }
@@ -25,20 +28,20 @@ int accept_request() {
         addr.sin_family = AF_INET;
         addr.sin_addr.s_addr = htonl(INADDR_ANY);
         addr.sin_port = htons(CTRL_MSG_PORT);
-        if (bind(sock, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+        if (bind(g_ctrl_sock, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
             perror("[-]: bind(accept_join_request)");
-            close(sock);
-            sock = -1;
+            close(g_ctrl_sock);
+            g_ctrl_sock = -1;
             return -1;
         }
         fprintf(stderr, "[+]: Waiting for join request on UDP %d\n", CTRL_MSG_PORT);
-        inited = 1;
+        g_ctrl_inited = 1;
     }
 
     char buf[256];
     struct sockaddr_in client;
     socklen_t clen = sizeof(client);
-    ssize_t r = recvfrom(sock, buf, sizeof(buf) - 1, 0, (struct sockaddr *)&client, &clen);
+    ssize_t r = recvfrom(g_ctrl_sock, buf, sizeof(buf) - 1, 0, (struct sockaddr *)&client, &clen);
     if (r < 0) {
         perror("[-]: recvfrom(accept_join_request)");
         return -1;
@@ -50,7 +53,7 @@ int accept_request() {
 
     if (strcmp(buf, HELLO_RELAY_SERVER_MSG) == 0) {
         uint32_t nid_n = htonl((uint32_t)network_id);
-        if (sendto(sock, &nid_n, sizeof(nid_n), 0, (struct sockaddr *)&client, clen) < 0) {
+        if (sendto(g_ctrl_sock, &nid_n, sizeof(nid_n), 0, (struct sockaddr *)&client, clen) < 0) {
             perror("[-]: sendto(accept_join_request)");
             return -1;
         }
@@ -59,7 +62,7 @@ int accept_request() {
         network_id++;
         return JOIN_REQUEST_CODE;
     } else if (strcmp(buf, READY_SEND_NODEDATA_LIST_MSG) == 0) {
-        if (sendto(sock, READY_RECV_NODEDATA_LIST_MSG, strlen(READY_RECV_NODEDATA_LIST_MSG), 0,
+        if (sendto(g_ctrl_sock, READY_RECV_NODEDATA_LIST_MSG, strlen(READY_RECV_NODEDATA_LIST_MSG), 0,
                    (struct sockaddr *)&client, clen) < 0) {
             perror("[-]: sendto(READY_RECV_NODEDATA_LIST_MSG)");
             return -1;
@@ -67,9 +70,54 @@ int accept_request() {
         fprintf(stderr, "[+]: READY_SEND from %s:%d -> replied READY_RECV\n",
                 ipstr, ntohs(client.sin_port));
         return RECV_NODEDATA_LIST_REQUEST_CODE;
+    } else if (strcmp(buf, GIVE_ME_DB_MSG) == 0) {
+        // remember the requester to reply later
+        g_last_client = client;
+        g_last_client_len = clen;
+        fprintf(stderr, "[+]: GIVE_ME_DB from %s:%d\n",
+                ipstr, ntohs(client.sin_port));
+        return NODEINFO_DB_REQUEST_CODE;
     } else {
         fprintf(stderr, "[-]: Unexpected message from %s:%d: '%s'\n",
                 ipstr, ntohs(client.sin_port), buf);
         return -1;
     }
+}
+
+int send_nodeinfo_database(const struct nodeinfo_database *db) {
+    if (g_ctrl_sock < 0 || !g_ctrl_inited || g_last_client_len == 0) {
+        fprintf(stderr, "[-]: send_nodeinfo_database: no requester context\n");
+        return -1;
+    }
+    if (!db || db->current_size <= 0) {
+        // Nothing to send or not built yet
+        if (sendto(g_ctrl_sock, ALREADY_UPTODATE_MSG, strlen(ALREADY_UPTODATE_MSG), 0,
+                   (struct sockaddr *)&g_last_client, g_last_client_len) < 0) {
+            perror("[-]: sendto(ALREADY_UPTODATE_MSG)");
+            return -1;
+        }
+        fprintf(stderr, "[+]: Sent ALREADY_UPTODATE to %s:%d\n",
+                inet_ntoa(g_last_client.sin_addr), ntohs(g_last_client.sin_port));
+        return 0;
+    }
+
+    if (sendto(g_ctrl_sock, SEND_YOU_DB_MSG, strlen(SEND_YOU_DB_MSG), 0,
+               (struct sockaddr *)&g_last_client, g_last_client_len) < 0) {
+        perror("[-]: sendto(SEND_YOU_DB_MSG)");
+        return -1;
+    }
+
+    size_t bytes = sizeof(struct nodeinfo_database)
+                 + sizeof(struct nodeinfo_database_element) * (size_t)db->current_size;
+    ssize_t s = sendto(g_ctrl_sock, db, bytes, 0,
+                       (struct sockaddr *)&g_last_client, g_last_client_len);
+    if (s < 0 || (size_t)s != bytes) {
+        perror("[-]: sendto(nodeinfo_database)");
+        return -1;
+    }
+
+    fprintf(stderr, "[+]: Sent nodeinfo_database (elements=%d, bytes=%zu) to %s:%d\n",
+            db->current_size, bytes,
+            inet_ntoa(g_last_client.sin_addr), ntohs(g_last_client.sin_port));
+    return 0;
 }

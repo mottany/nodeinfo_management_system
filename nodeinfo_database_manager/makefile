@@ -78,12 +78,3 @@ android-armv7: all
 android-x86_64: ANDROID=1
 android-x86_64: ABI=x86_64
 android-x86_64: all
-
-# --- tests ---
-test: test_db_manager
-
-test_db_manager: db_manager.o
-	$(CC) $(CFLAGS) test_db_manager.c db_manager.o -o test_db_manager.bin $(LDFLAGS)
-
-test-run: test_db_manager
-	./test_db_manager.bin

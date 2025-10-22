@@ -152,7 +152,7 @@ static struct nodedata_list *receive_nodedata_list(void) {
     struct sockaddr_in addr, sender_addr;
     socklen_t sender_addr_len = sizeof(sender_addr);
     // 可変長に対応するため十分大きい受信バッファを確保（最大UDPペイロード近辺）
-    enum { MAX_UDP_PAYLOAD = 65535 };
+    enum { MAX_UDP_PAYLOAD = UINT16_MAX };
     char *recv_buf = (char *)malloc(MAX_UDP_PAYLOAD);
     if (!recv_buf) return NULL;
 

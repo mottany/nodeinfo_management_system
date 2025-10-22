@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
+#include <stdlib.h>
 #include <pwd.h>
 #include <ctype.h>
 #include <arpa/inet.h>
@@ -284,48 +285,93 @@ int update_hostfile(const struct nodedata_list *list) {
     return 0;
 }
 
-int receive_nodeinfo_database() {
-    
-    fprintf(stderr, "[+]: Start receiving nodeinfo database\n");
+// Internal helper to receive one DB datagram on an existing socket with timeout
+static struct nodeinfo_database *receive_db_on_socket_impl(int sock,
+                                                          int timeout_sec,
+                                                          int timeout_usec,
+                                                          int *out_bytes) {
+    if (out_bytes) *out_bytes = 0;
 
-    int sock;
-    struct sockaddr_in addr;
-    char recv_buf[4096];
+    // apply timeout if requested
+    if (timeout_sec >= 0 || timeout_usec >= 0) {
+        wrapped_set_recv_timeout(sock, timeout_sec, timeout_usec);
+    }
+
+    enum { MAX_UDP_PAYLOAD = 65535 };
+    char *buf = (char *)malloc(MAX_UDP_PAYLOAD);
+    if (!buf) {
+        if (out_bytes) *out_bytes = -1;
+        return NULL;
+    }
+
     struct sockaddr_in sender_addr;
     socklen_t sender_addr_len = sizeof(sender_addr);
-    int recv_len;
-
-    // ソケット作成
-    sock = wrapped_socket(AF_INET, SOCK_DGRAM, 0);
-    if (sock < 0) {
-        return -1;
+    int r = wrapped_recvfrom(sock, buf, MAX_UDP_PAYLOAD, 0,
+                             (struct sockaddr *)&sender_addr, &sender_addr_len);
+    if (r == IS_TIMEOUT) {
+        free(buf);
+        if (out_bytes) *out_bytes = IS_TIMEOUT;
+        return NULL;
+    }
+    if (r <= 0) {
+        free(buf);
+        if (out_bytes) *out_bytes = -1;
+        return NULL;
     }
 
-    // バインド
-    addr.sin_family = AF_INET;
-    addr.sin_port = htons(NODEDATA_LIST_PORT);
-    addr.sin_addr.s_addr = htonl(INADDR_ANY);
+    if (r < (int)sizeof(struct nodeinfo_database)) {
+        fprintf(stderr, "[-]: DB datagram too short: %d bytes\n", r);
+        free(buf);
+        if (out_bytes) *out_bytes = -1;
+        return NULL;
+    }
 
+    struct nodeinfo_database *hdr = (struct nodeinfo_database *)buf;
+    size_t expected = sizeof(struct nodeinfo_database)
+                    + sizeof(struct nodeinfo_database_element) * (size_t)hdr->current_size;
+    if ((size_t)r < expected) {
+        fprintf(stderr, "[-]: Corrupted DB payload (recv=%d, expected>=%zu, count=%d)\n",
+                r, expected, hdr->current_size);
+        free(buf);
+        if (out_bytes) *out_bytes = -1;
+        return NULL;
+    }
+
+    char *shrink = (char *)realloc(buf, (size_t)r);
+    if (shrink) buf = shrink;
+
+    if (out_bytes) *out_bytes = r;
+    return (struct nodeinfo_database *)buf;
+}
+
+struct nodeinfo_database *receive_nodeinfo_database_on_socket(int sock,
+                                                             int timeout_sec,
+                                                             int timeout_usec,
+                                                             int *out_bytes) {
+    return receive_db_on_socket_impl(sock, timeout_sec, timeout_usec, out_bytes);
+}
+
+struct nodeinfo_database *receive_nodeinfo_database_bound(int port,
+                                                         int timeout_sec,
+                                                         int timeout_usec,
+                                                         int *out_bytes) {
+    int sock = wrapped_socket(AF_INET, SOCK_DGRAM, 0);
+    if (sock < 0) {
+        if (out_bytes) *out_bytes = -1;
+        return NULL;
+    }
+    struct sockaddr_in addr;
+    memset(&addr, 0, sizeof(addr));
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(port);
+    addr.sin_addr.s_addr = htonl(INADDR_ANY);
     if (wrapped_bind(sock, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
         close(sock);
-        return -1;
+        if (out_bytes) *out_bytes = -1;
+        return NULL;
     }
 
-    // ノード情報データベース受信
-    recv_len = wrapped_recvfrom(sock, recv_buf, sizeof(recv_buf), 0,
-                                (struct sockaddr *)&sender_addr, &sender_addr_len);
-    if (recv_len < 0) {
-        close(sock);
-        return -1;
-    }
-
-    // 受信データをnodeinfo_databaseにコピー
-    struct nodeinfo_database *db = (struct nodeinfo_database *)recv_buf;
-    if (recv_len > sizeof(*db)) {
-        recv_len = sizeof(*db);
-    }
-    memcpy(db, recv_buf, recv_len);
-
+    struct nodeinfo_database *db = receive_db_on_socket_impl(sock, timeout_sec, timeout_usec, out_bytes);
     close(sock);
-    return recv_len;
+    return db;
 }

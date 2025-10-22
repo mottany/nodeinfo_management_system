@@ -13,19 +13,29 @@
 #include "sock_wrapper_functions.h"
 
 enum {
-    JOIN_REQUEST_CODE = 1,
-    LEAVE_REQUEST_CODE = 2,
+    TIMEOUT_CODE         = 0,
+    JOIN_REQUEST_CODE    = 1,
+    LEAVE_REQUEST_CODE   = 2,
     RECV_DB_REQUEST_CODE = 3
 };
 
-static const char HELLO_RELAY_SERVER_MSG[]        = "Hello_relay_server!";
-static const char READY_SEND_NODEDATA_LIST_MSG[]  = "Ready_to_send_nodedata_list";
-static const char READY_RECV_NODEDATA_LIST_MSG[]  = "Ready_to_recv_nodedata_list";
+static const char HELLO_RELAY_SERVER_MSG[]       = "Hello_relay_server!";
+static const char READY_SEND_NODEDATA_LIST_MSG[] = "Ready_to_send_nodedata_list";
+static const char READY_RECV_NODEDATA_LIST_MSG[] = "Ready_to_recv_nodedata_list";
+static const char GIVE_ME_DB_MSG[]               = "Give_me_db";
+static const char ALREADY_UPTODATE_MSG[]         = "Already_uptodate";
+static const char SEND_YOU_DB_MSG[]              = "Send_you_db";
 
 static char RELAY_SERVER_IP[INET_ADDRSTRLEN] = "160.12.172.77";
 
-static const int RELAY_RECV_TIMEOUT_SEC  = 2;
-static const int RELAY_RECV_TIMEOUT_USEC = 0;
+static const int RELAY_RECV_TIMEOUT_SEC      = 1;
+static const int RELAY_RECV_TIMEOUT_USEC     = 0;
+static const int MEMBER_REQUEST_TIMEOUT_SEC  = 5;
+static const int MEMBER_REQUEST_TIMEOUT_USEC = 0;
+
+// Hold the latest nodeinfo_database snapshot in memory
+static struct nodeinfo_database *g_nodeinfo_db = NULL;
+static size_t g_nodeinfo_db_bytes = 0;
 
 static void init_relay_server_ip(void) {
     const char *env = getenv("RELAY_SERVER_IP");
@@ -133,7 +143,7 @@ static int request_join_huge_cluster() {
     return network_id;
 }
 
-static int accept_request() {
+static int accept_member_request() {
     fprintf(stderr, "[+]: Waiting for control message from member nodes or relay server\n");
 
     int sock;
@@ -146,6 +156,9 @@ static int accept_request() {
     if (sock < 0) {
         return -1;
     }
+
+    /* 受信タイムアウトを設定（一定時間リクエストがなければ TIMEOUT_CODE を返す） */
+    wrapped_set_recv_timeout(sock, MEMBER_REQUEST_TIMEOUT_SEC, MEMBER_REQUEST_TIMEOUT_USEC);
 
     /* バインド */
     memset(&addr, 0, sizeof(addr));
@@ -160,7 +173,11 @@ static int accept_request() {
     /* メッセージ受信 */
     int r = wrapped_recvfrom(sock, buf, sizeof(buf) - 1, 0,
                              (struct sockaddr *)&client_addr, &client_len);
-    if (r <= 0) {
+    if (r == IS_TIMEOUT) {
+        /* 規定時間内にメンバーからの要求がなければ TIMEOUT_CODE */
+        close(sock);
+        return TIMEOUT_CODE;
+    } else if (r <= 0) {
         close(sock);
         return -1;
     }
@@ -189,17 +206,6 @@ static int accept_request() {
                 inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
         close(sock);
         return LEAVE_REQUEST_CODE;
-    } else if (strcmp(buf, READY_SEND_DB_MSG) == 0) {
-        if (sendto(sock, READY_RECV_DB_MSG, strlen(READY_RECV_DB_MSG), 0,
-                   (struct sockaddr *)&client_addr, client_len) < 0) {
-            perror("[-]: Failed to send ready-recv-db message");
-            close(sock);
-            return -1;
-        }
-        fprintf(stderr, "[+]: Relay server ready request from %s:%d\n",
-                inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
-        close(sock);
-        return RECV_DB_REQUEST_CODE;
     } else {
         fprintf(stderr, "[-]: Unknown control message: %s\n", buf);
         close(sock);
@@ -492,7 +498,91 @@ static int distribute_nodedata_list(const struct nodedata_list *list) {
     return 0;
 }
 
-static int send_nodeinfo_database() {
+// Request nodeinfo_database from relay server and keep it in memory
+static int request_nodeinfo_database(void) {
+    fprintf(stderr, "[+]: Requesting nodeinfo_database from relay server\n");
+
+    int sock = wrapped_socket(AF_INET, SOCK_DGRAM, 0);
+    if (sock < 0) {
+        return -1;
+    }
+    // apply receive timeout for control/data from relay
+    wrapped_set_recv_timeout(sock, RELAY_RECV_TIMEOUT_SEC, RELAY_RECV_TIMEOUT_USEC);
+
+    struct sockaddr_in relay;
+    memset(&relay, 0, sizeof(relay));
+    relay.sin_family = AF_INET;
+    // Use the control port so the relay can reply on the same socket (NAT friendly)
+    relay.sin_port = htons(CTRL_MSG_PORT);
+    if (inet_pton(AF_INET, RELAY_SERVER_IP, &relay.sin_addr) != 1) {
+        fprintf(stderr, "[-]: inet_pton failed for RELAY_SERVER_IP=%s\n", RELAY_SERVER_IP);
+        close(sock);
+        return -1;
+    }
+
+    // 1) Send GIVE_ME_DB_MSG
+    size_t mlen = strlen(GIVE_ME_DB_MSG);
+    if (sendto(sock, GIVE_ME_DB_MSG, mlen, 0, (struct sockaddr *)&relay, sizeof(relay)) < 0) {
+        perror("[-]: sendto(GIVE_ME_DB_MSG)");
+        close(sock);
+        return -1;
+    }
+
+    // 2) Branch by the first reply
+    char ctrl[128];
+    struct sockaddr_in from;
+    socklen_t fromlen = sizeof(from);
+    int r = wrapped_recvfrom(sock, ctrl, sizeof(ctrl) - 1, 0, (struct sockaddr *)&from, &fromlen);
+    if (r == IS_TIMEOUT) {
+        fprintf(stderr, "[!]: request_nodeinfo_database timeout waiting for relay reply\n");
+        close(sock);
+        return IS_TIMEOUT;
+    } else if (r <= 0) {
+        close(sock);
+        return -1;
+    }
+    ctrl[r] = '\0';
+
+    if (strcmp(ctrl, ALREADY_UPTODATE_MSG) == 0) {
+        fprintf(stderr, "[+]: nodeinfo_database is already uptodate\n");
+        close(sock);
+        return 0;
+    }
+
+    if (strcmp(ctrl, SEND_YOU_DB_MSG) == 0) {
+        int db_bytes = 0;
+        struct nodeinfo_database *db = receive_nodeinfo_database_on_socket(sock,
+                                                                          RELAY_RECV_TIMEOUT_SEC,
+                                                                          RELAY_RECV_TIMEOUT_USEC,
+                                                                          &db_bytes);
+        if (!db) {
+            if (db_bytes == IS_TIMEOUT) {
+                fprintf(stderr, "[!]: request_nodeinfo_database timed out receiving DB payload\n");
+                close(sock);
+                return IS_TIMEOUT;
+            }
+            close(sock);
+            return -1;
+        }
+
+        if (g_nodeinfo_db) free(g_nodeinfo_db);
+        g_nodeinfo_db = db;
+        g_nodeinfo_db_bytes = (size_t)db_bytes;
+
+        fprintf(stderr, "[+]: Updated in-memory nodeinfo_database (elements=%d, bytes=%zu)\n",
+                g_nodeinfo_db->current_size, g_nodeinfo_db_bytes);
+        print_nodeinfo_database(g_nodeinfo_db);
+
+        close(sock);
+        return 0;
+    }
+
+    fprintf(stderr, "[-]: Unexpected control reply from relay: '%s'\n", ctrl);
+    close(sock);
+    return -1;
+}
+
+static int distribute_nodeinfo_db() {
     // メンバノードにノード情報データベース送信
     return 0;
 }
@@ -522,10 +612,32 @@ int run_master_node_procedure() {
     }
 
     while(1){
-        int request_code = accept_request();        
+        int request_code = accept_member_request();        
         if(request_code < 0){
             fprintf(stderr, "[-]: Error in accepting request\n");
             return -1;
+        }
+
+        // メンバノードから一定時間リクエストがなかったら
+        if(request_code == TIMEOUT_CODE){
+            if(nd_list->network_id <= 0){
+                int network_id = request_join_huge_cluster();
+                if (network_id == IS_TIMEOUT) {
+                    fprintf(stderr, "[!]: Relay join timed out; will skip relay distribution.\n");
+                    nd_list->network_id = IS_TIMEOUT;
+                } else if (network_id < 0) {
+                    fprintf(stderr, "[-]: Failed to join huge cluster via relay server\n");
+                    return -1;
+                } else {
+                    nd_list->network_id = network_id;
+                }
+            } else { 
+                if(request_nodeinfo_database() < 0){
+                   fprintf(stderr, "[-]: Failed to request nodeinfo_database\n");
+                   return -1;
+                }
+            }
+            continue;
         }
         
         struct nodedata nd = receive_nodedata();
@@ -536,7 +648,7 @@ int run_master_node_procedure() {
         fprintf(stderr, "[+]: Successfully received nodedata from %s (uid=%d, cpu=%d)\n",
             inet_ntoa(*(struct in_addr *)&nd.ipaddress), nd.userid, nd.cpu_core_num);
         
-        // メンバノードからノード登録要求を受信したら
+        // メンバノードからクラスタ参加要求を受信したら
         if(request_code == JOIN_REQUEST_CODE){
             if(add_nodedata_to_list(&nd, nd_list) < 0){
                 fprintf(stderr, "[-]: Failed to add nodedata to list\n");
@@ -545,7 +657,7 @@ int run_master_node_procedure() {
             fprintf(stderr, "[+]: Successfully added nodedata to list (current size: %d)\n", nd_list->current_size);
         }
         
-        // メンバノードからノード脱退要求を受信したら
+        // メンバノードからクラスタ脱退要求を受信したら
         // else if (request_code == LEAVE_REQUEST_CODE){}
         
         print_nodedata_list(nd_list);

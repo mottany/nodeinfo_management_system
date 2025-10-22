@@ -1,4 +1,3 @@
-// Keep only main
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -9,6 +8,8 @@
 
 int main(void) {
     fprintf(stderr, "[+]: Start nodeinfo database manager\n");
+
+    struct nodeinfo_database *db = NULL;
 
     while (1) {
         int request_code = accept_request();
@@ -26,15 +27,18 @@ int main(void) {
                 fprintf(stderr, "[-]: Error in receiving nodedata list\n");
                 continue;
             }
-            struct nodeinfo_database *db = update_nodeinfo_database(list);
+            db = update_nodeinfo_database(list);
             free(list);
             if (!db) {
                 fprintf(stderr, "[-]: Error in updating nodeinfo database\n");
                 continue;
             }
             print_nodeinfo_database(db);
-            // TODO: send_nodeinfo_database(db);
-            free(db);
+        } else if (request_code == NODEINFO_DB_REQUEST_CODE) {
+            if(send_nodeinfo_database(db) < 0){
+                fprintf(stderr, "[-]: Error in sending nodeinfo_database\n");
+                continue;
+            }
         }
     }
 

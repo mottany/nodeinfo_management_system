@@ -54,6 +54,22 @@ void print_nodedata_list(const struct nodedata_list *list);
 void print_nodeinfo_database(const struct nodeinfo_database *db);
 int update_nodeinfo(struct nodedata_list *list);
 int update_hostfile(const struct nodedata_list *list);
-int receive_nodeinfo_database();
+
+// DB receive helpers
+// Receive a nodeinfo_database datagram on an existing socket.
+// On success: returns malloc'd pointer and sets *out_bytes to datagram size.
+// On timeout: returns NULL and sets *out_bytes to IS_TIMEOUT.
+// On error:   returns NULL and sets *out_bytes to -1.
+struct nodeinfo_database *receive_nodeinfo_database_on_socket(int sock,
+                                                             int timeout_sec,
+                                                             int timeout_usec,
+                                                             int *out_bytes);
+
+// Convenience: bind a temporary UDP socket to `port`, receive one DB, then close.
+// Same return contract as above.
+struct nodeinfo_database *receive_nodeinfo_database_bound(int port,
+                                                         int timeout_sec,
+                                                         int timeout_usec,
+                                                         int *out_bytes);
 
 #endif /* COMMON_H */
