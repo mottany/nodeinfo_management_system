@@ -38,9 +38,9 @@ struct nodeinfo_database_element {
     int network_id;
     uint32_t ipaddress;
     int userid;
+    int cpu_core_num;
     int control_port_num;
     int message_port_num;
-    int cpu_core_num;
 };
 
 struct nodeinfo_database {

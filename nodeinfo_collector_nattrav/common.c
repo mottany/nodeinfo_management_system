@@ -120,9 +120,8 @@ void print_nodeinfo_database(const struct nodeinfo_database *db) {
            db->current_size, db->max_size);
     for (int i = 0; i < db->current_size; i++) {
         struct nodeinfo_database_element *el = &db->elements[i];
-        printf("  Element %d: NetworkID=%d, IP=%d, UserID=%d, ControlPort=%d, MessagePort=%d, CPU Cores=%d\n",
-               i, el->network_id, el->ipaddress, el->userid,
-               el->control_port_num, el->message_port_num, el->cpu_core_num);
+        printf("  Element %d: NetworkID=%d, IP=%d, UserID=%d, CPU Cores=%d, ControlPort=%d, MessagePort=%d\n",
+               i, el->network_id, el->ipaddress, el->userid, el->cpu_core_num, el->control_port_num, el->message_port_num);
     }
     return;
 }

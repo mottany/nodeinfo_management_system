@@ -208,17 +208,15 @@ struct nodeinfo_database *update_nodeinfo_database(const struct nodedata_list *l
 
 void print_nodeinfo_database(const struct nodeinfo_database *db) {
     if (!db) {
-        fprintf(stderr, "[-]: print_nodeinfo_database: db is NULL\n");
+        fprintf(stderr, "[-]: print_nodeinfo_database(): db is NULL\n");
         return;
     }
-    fprintf(stderr, "[DB]: current_size=%d\n", db->current_size);
+    printf("Nodeinfo Database (current size: %d, max size: %d):\n",
+           db->current_size, db->max_size);
     for (int i = 0; i < db->current_size; i++) {
-        const struct nodeinfo_database_element *e = &db->elements[i];
-        char ipstr[INET_ADDRSTRLEN];
-        struct in_addr ia = { .s_addr = e->ipaddress };
-        inet_ntop(AF_INET, &ia, ipstr, sizeof(ipstr));
-        fprintf(stderr, "  #%d nid=%d ip=%s uid=%d cpu=%d ctrl=%d msg=%d\n",
-                i, e->network_id, ipstr, e->userid, e->cpu_core_num,
-                e->control_port_num, e->message_port_num);
+        struct nodeinfo_database_element *el = &db->elements[i];
+        printf("  Element %d: NetworkID=%d, IP=%d, UserID=%d, CPU Cores=%d, ControlPort=%d, MessagePort=%d\n",
+               i, el->network_id, el->ipaddress, el->userid, el->cpu_core_num, el->control_port_num, el->message_port_num);
     }
+    return;
 }
