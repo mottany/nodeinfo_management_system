@@ -142,7 +142,7 @@ static int request_join_huge_cluster() {
 }
 
 static int accept_member_request() {
-    fprintf(stderr, "[+]: Waiting for control message from member nodes or relay server\n");
+    fprintf(stderr, "[+]: Waiting for control message from member nodes\n");
 
     int sock;
     struct sockaddr_in addr, client_addr;
