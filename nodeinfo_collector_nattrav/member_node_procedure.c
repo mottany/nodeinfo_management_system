@@ -151,6 +151,8 @@ static int send_my_nodedata(struct sockaddr_in *master_node_addr) {
 }
 
 static int identify_data_type_from_master() {
+    fprintf(stderr, "[+]: Identifying data type from master node\n");
+
     int sock = wrapped_socket(AF_INET, SOCK_DGRAM, 0);
     if (sock < 0) return -1;
 
@@ -177,8 +179,10 @@ static int identify_data_type_from_master() {
     int dtype = 0;
     if (strcmp(buf, READY_SEND_NODEDATA_LIST_MSG) == 0) {
         dtype = NODEDATA_LIST;
+        fprintf(stderr, "[+]: Identified data type: NODEDATA_LIST\n");
     } else if (strcmp(buf, READY_SEND_DB_MSG) == 0) {
         dtype = NODEINFO_DATABASE;
+        fprintf(stderr, "[+]: Identified data type: NODEINFO_DATABASE\n");
     } else {
         fprintf(stderr, "[-]: Unknown control message from master: %s\n", buf);
     }
