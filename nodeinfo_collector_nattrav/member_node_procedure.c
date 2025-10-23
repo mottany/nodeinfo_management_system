@@ -17,6 +17,11 @@
 #include "sock_wrapper_functions.h"
 #include "member_node_procedure.h"
 
+enum {
+    NODEDATA_LIST = 1,
+    NODEINFO_DATABASE = 2
+};
+
 static const int RECV_TIMEOUT_SEC = 1;
 static const int RECV_TIMEOUT_USEC = 0;
 
@@ -145,6 +150,43 @@ static int send_my_nodedata(struct sockaddr_in *master_node_addr) {
     return 0;
 }
 
+static int identify_data_type_from_master() {
+    int sock = wrapped_socket(AF_INET, SOCK_DGRAM, 0);
+    if (sock < 0) return -1;
+
+    struct sockaddr_in addr, from;
+    socklen_t fromlen = sizeof(from);
+    char buf[256];
+
+    memset(&addr, 0, sizeof(addr));
+    addr.sin_family = AF_INET;
+    addr.sin_addr.s_addr = htonl(INADDR_ANY);
+    addr.sin_port = htons(CTRL_MSG_PORT);
+    if (wrapped_bind(sock, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+        close(sock);
+        return -1;
+    }
+
+    int r = wrapped_recvfrom(sock, buf, sizeof(buf) - 1, 0, (struct sockaddr *)&from, &fromlen);
+    if (r <= 0) {
+        close(sock);
+        return -1;
+    }
+    buf[r] = '\0';
+
+    int dtype = 0;
+    if (strcmp(buf, READY_SEND_NODEDATA_LIST_MSG) == 0) {
+        dtype = NODEDATA_LIST;
+    } else if (strcmp(buf, READY_SEND_DB_MSG) == 0) {
+        dtype = NODEINFO_DATABASE;
+    } else {
+        fprintf(stderr, "[-]: Unknown control message from master: %s\n", buf);
+    }
+
+    close(sock);
+    return dtype;
+}
+
 static struct nodedata_list *receive_nodedata_list(void) {
     fprintf(stderr, "[+]: Receiving nodedata list from master node\n");
 
@@ -241,36 +283,42 @@ int run_member_node_procedure(){
     
     // マスターノードからのnodedata_listとnodeinfo_databaseを受信
     while (1) {
-        struct nodedata_list *received_list = receive_nodedata_list();
-        if (!received_list) {
-            fprintf(stderr, "[-]: Failed to receive nodedata list\n");
-            return -1;
-        }
-        fprintf(stderr, "[+]: Successfully received nodedata list (count=%d)\n",
-                received_list->current_size);
-        print_nodedata_list(received_list);
-        if (update_nodeinfo(received_list) < 0) {
-            fprintf(stderr, "[-]: Failed to update nodeinfo file\n");
+        int data_type = identify_data_type_from_master();
+        if (data_type == NODEDATA_LIST) {
+            struct nodedata_list *received_list = receive_nodedata_list();
+            if (!received_list) {
+                fprintf(stderr, "[-]: Failed to receive nodedata list\n");
+                return -1;
+            }
+            fprintf(stderr, "[+]: Successfully received nodedata list (count=%d)\n",
+                    received_list->current_size);
+            print_nodedata_list(received_list);
+            if (update_nodeinfo(received_list) < 0) {
+                fprintf(stderr, "[-]: Failed to update nodeinfo file\n");
+                free(received_list);
+                return -1;
+            }
+            if (update_hostfile(received_list) < 0) {
+                fprintf(stderr, "[-]: Failed to update hostfile\n");
+                free(received_list);
+                return -1;
+            }
+            fprintf(stderr, "[+]: Successfully updated nodeinfo and hostfile\n");
             free(received_list);
+        } else if (data_type == NODEINFO_DATABASE) {
+            // Receive nodeinfo_database sent by master on NODEINFO_DB_PORT
+            db = receive_nodeinfo_database_bound(NODEINFO_DB_PORT);
+            if (!db) {
+                fprintf(stderr, "[-]: Failed to receive nodeinfo_database\n");
+                return -1;
+            }
+            fprintf(stderr, "[+]: Received nodeinfo_database\n");
+            print_nodeinfo_database(db);
+        } else {
+            fprintf(stderr, "[-]: Unknown data type received: %d\n", data_type);
             return -1;
         }
-        if (update_hostfile(received_list) < 0) {
-            fprintf(stderr, "[-]: Failed to update hostfile\n");
-            free(received_list);
-            return -1;
-        }
-        fprintf(stderr, "[+]: Successfully updated nodeinfo and hostfile\n");
-        free(received_list);
-        // Receive nodeinfo_database sent by master on NODEINFO_DB_PORT
-        db = receive_nodeinfo_database_bound(NODEINFO_DB_PORT);
-        if (!db) {
-            fprintf(stderr, "[!]: No nodeinfo_database received\n");
-            continue;
-        }
-        fprintf(stderr, "[+]: Received nodeinfo_database\n");
-        print_nodeinfo_database(db);
-        free(db);
-     }
+    }
     
     return 0;
 }

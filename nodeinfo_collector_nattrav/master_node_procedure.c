@@ -20,15 +20,13 @@ enum {
 };
 
 static const char HELLO_RELAY_SERVER_MSG[]       = "Hello_relay_server!";
-static const char READY_SEND_NODEDATA_LIST_MSG[] = "Ready_to_send_nodedata_list";
-static const char READY_RECV_NODEDATA_LIST_MSG[] = "Ready_to_recv_nodedata_list";
 static const char GIVE_ME_DB_MSG[]               = "Give_me_db";
 
 static char RELAY_SERVER_IP[INET_ADDRSTRLEN] = "160.12.172.77";
 
 static const int RELAY_RECV_TIMEOUT_SEC      = 1;
 static const int RELAY_RECV_TIMEOUT_USEC     = 0;
-static const int MEMBER_REQUEST_TIMEOUT_SEC  = 9;
+static const int MEMBER_REQUEST_TIMEOUT_SEC  = 10;
 static const int MEMBER_REQUEST_TIMEOUT_USEC = 0;
 
 // Hold the latest nodeinfo_database snapshot in memory
@@ -347,15 +345,29 @@ static int send_nodedata_list_to_members(const struct nodedata_list *list) {
         if (ip == 0) {
             continue;
         }
+        // skip self
+        struct nodedata me = get_my_nodedata();
+        if (ip == me.ipaddress) continue;
 
         struct sockaddr_in dst;
         memset(&dst, 0, sizeof(dst));
         dst.sin_family = AF_INET;
-        dst.sin_port = htons(NODEDATA_LIST_PORT);
+        // 1) Send control message to CTRL_MSG_PORT
+        dst.sin_port = htons(CTRL_MSG_PORT);
         dst.sin_addr.s_addr = ip;
 
-        ssize_t n = sendto(sock, list, payload_len, 0,
+        ssize_t n = sendto(sock, READY_SEND_NODEDATA_LIST_MSG, strlen(READY_SEND_NODEDATA_LIST_MSG), 0,
                            (struct sockaddr *)&dst, sizeof(dst));
+        if (n < 0 || (size_t)n != strlen(READY_SEND_NODEDATA_LIST_MSG)) {
+            perror("[-]: sendto(control READY_SEND_NODEDATA_LIST)");
+            failures++;
+            continue;
+        }
+
+        // 2) Send payload to NODEDATA_LIST_PORT
+        dst.sin_port = htons(NODEDATA_LIST_PORT);
+        n = sendto(sock, list, payload_len, 0,
+                   (struct sockaddr *)&dst, sizeof(dst));
         if (n < 0 || (size_t)n != payload_len) {
             perror("[-]: sendto(nodedata_list)");
             failures++;
@@ -576,11 +588,23 @@ static int distribute_nodeinfo_database(const struct nodedata_list *list) {
         struct sockaddr_in dst;
         memset(&dst, 0, sizeof(dst));
         dst.sin_family = AF_INET;
-        dst.sin_port = htons(NODEINFO_DB_PORT);
+        // 1) Send control message for DB
+        dst.sin_port = htons(CTRL_MSG_PORT);
         dst.sin_addr.s_addr = ip;
 
-        ssize_t n = sendto(sock, g_nodeinfo_db, payload_len, 0,
+
+        ssize_t n = sendto(sock, READY_SEND_DB_MSG, strlen(READY_SEND_DB_MSG), 0,
                            (struct sockaddr *)&dst, sizeof(dst));
+        if (n < 0 || (size_t)n != strlen(READY_SEND_DB_MSG)) {
+            perror("[-]: sendto(control READY_SEND_DB)");
+            failures++;
+            continue;
+        }
+
+        // 2) Send DB payload to DB port
+        dst.sin_port = htons(NODEINFO_DB_PORT);
+        n = sendto(sock, g_nodeinfo_db, payload_len, 0,
+                   (struct sockaddr *)&dst, sizeof(dst));
         if (n < 0 || (size_t)n != payload_len) {
             perror("[-]: sendto(nodeinfo_database to member)");
             failures++;
@@ -630,18 +654,7 @@ int run_master_node_procedure() {
 
         // メンバノードから一定時間リクエストがなかったら
         if(request_code == TIMEOUT_CODE){
-            if(nd_list->network_id <= 0){
-                int network_id = request_join_huge_cluster();
-                if (network_id == IS_TIMEOUT) {
-                    fprintf(stderr, "[!]: Relay join timed out; will skip relay distribution.\n");
-                    nd_list->network_id = IS_TIMEOUT;
-                } else if (network_id < 0) {
-                    fprintf(stderr, "[-]: Failed to join huge cluster via relay server\n");
-                    return -1;
-                } else {
-                    nd_list->network_id = network_id;
-                }
-            } else { 
+            if(nd_list->network_id > 0){ 
                 if(request_nodeinfo_database() < 0){
                    fprintf(stderr, "[-]: Failed to request nodeinfo_database\n");
                    return -1;

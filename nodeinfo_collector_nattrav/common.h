@@ -7,6 +7,8 @@
 #define WELCOME_NODE_MSG "Welcome_node!"
 #define BYE_CLUSTER_MSG "Bye_cluster"
 #define BYE_NODE_MSG "Bye_node"
+#define READY_SEND_NODEDATA_LIST_MSG "Ready_to_send_nodedata_list"
+#define READY_RECV_NODEDATA_LIST_MSG "Ready_to_recv_nodedata_list"
 #define READY_SEND_DB_MSG "Ready_to_send_DB"
 #define READY_RECV_DB_MSG "Ready_to_recv_DB"
 #define NODEINFO "nodeinfo"
