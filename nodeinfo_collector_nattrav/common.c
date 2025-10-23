@@ -285,21 +285,10 @@ int update_hostfile(const struct nodedata_list *list) {
 }
 
 // Internal helper to receive one DB datagram on an existing socket with timeout
-static struct nodeinfo_database *receive_db_on_socket_impl(int sock,
-                                                          int timeout_sec,
-                                                          int timeout_usec,
-                                                          int *out_bytes) {
-    if (out_bytes) *out_bytes = 0;
-
-    // apply timeout if requested
-    if (timeout_sec >= 0 || timeout_usec >= 0) {
-        wrapped_set_recv_timeout(sock, timeout_sec, timeout_usec);
-    }
-
-    enum { MAX_UDP_PAYLOAD = 65535 };
+static struct nodeinfo_database *receive_db_on_socket_impl(int sock) {
+    enum { MAX_UDP_PAYLOAD = UINT16_MAX };
     char *buf = (char *)malloc(MAX_UDP_PAYLOAD);
     if (!buf) {
-        if (out_bytes) *out_bytes = -1;
         return NULL;
     }
 
@@ -307,21 +296,14 @@ static struct nodeinfo_database *receive_db_on_socket_impl(int sock,
     socklen_t sender_addr_len = sizeof(sender_addr);
     int r = wrapped_recvfrom(sock, buf, MAX_UDP_PAYLOAD, 0,
                              (struct sockaddr *)&sender_addr, &sender_addr_len);
-    if (r == IS_TIMEOUT) {
-        free(buf);
-        if (out_bytes) *out_bytes = IS_TIMEOUT;
-        return NULL;
-    }
     if (r <= 0) {
         free(buf);
-        if (out_bytes) *out_bytes = -1;
         return NULL;
     }
 
     if (r < (int)sizeof(struct nodeinfo_database)) {
         fprintf(stderr, "[-]: DB datagram too short: %d bytes\n", r);
         free(buf);
-        if (out_bytes) *out_bytes = -1;
         return NULL;
     }
 
@@ -332,31 +314,23 @@ static struct nodeinfo_database *receive_db_on_socket_impl(int sock,
         fprintf(stderr, "[-]: Corrupted DB payload (recv=%d, expected>=%zu, count=%d)\n",
                 r, expected, hdr->current_size);
         free(buf);
-        if (out_bytes) *out_bytes = -1;
         return NULL;
     }
 
     char *shrink = (char *)realloc(buf, (size_t)r);
     if (shrink) buf = shrink;
 
-    if (out_bytes) *out_bytes = r;
     return (struct nodeinfo_database *)buf;
 }
 
-struct nodeinfo_database *receive_nodeinfo_database_on_socket(int sock,
-                                                             int timeout_sec,
-                                                             int timeout_usec,
-                                                             int *out_bytes) {
-    return receive_db_on_socket_impl(sock, timeout_sec, timeout_usec, out_bytes);
+struct nodeinfo_database *receive_nodeinfo_database_on_socket(int sock) {
+    // timeout args are ignored; receive will block until data or error
+    return receive_db_on_socket_impl(sock);
 }
 
-struct nodeinfo_database *receive_nodeinfo_database_bound(int port,
-                                                         int timeout_sec,
-                                                         int timeout_usec,
-                                                         int *out_bytes) {
+struct nodeinfo_database *receive_nodeinfo_database_bound(int port) {
     int sock = wrapped_socket(AF_INET, SOCK_DGRAM, 0);
     if (sock < 0) {
-        if (out_bytes) *out_bytes = -1;
         return NULL;
     }
     struct sockaddr_in addr;
@@ -366,11 +340,10 @@ struct nodeinfo_database *receive_nodeinfo_database_bound(int port,
     addr.sin_addr.s_addr = htonl(INADDR_ANY);
     if (wrapped_bind(sock, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
         close(sock);
-        if (out_bytes) *out_bytes = -1;
         return NULL;
     }
 
-    struct nodeinfo_database *db = receive_db_on_socket_impl(sock, timeout_sec, timeout_usec, out_bytes);
+    struct nodeinfo_database *db = receive_db_on_socket_impl(sock);
     close(sock);
     return db;
 }

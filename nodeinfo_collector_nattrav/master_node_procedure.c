@@ -527,24 +527,14 @@ static int request_nodeinfo_database(void) {
     }
 
     // 2) Receive the DB datagram directly
-    int db_bytes = 0;
-    struct nodeinfo_database *db = receive_nodeinfo_database_on_socket(sock,
-                                                                      RELAY_RECV_TIMEOUT_SEC,
-                                                                      RELAY_RECV_TIMEOUT_USEC,
-                                                                      &db_bytes);
+    struct nodeinfo_database *db = receive_nodeinfo_database_on_socket(sock);
     if (!db) {
-        if (db_bytes == IS_TIMEOUT) {
-            fprintf(stderr, "[!]: request_nodeinfo_database timed out receiving DB payload\n");
-            close(sock);
-            return IS_TIMEOUT;
-        }
         close(sock);
         return -1;
     }
 
     if (g_nodeinfo_db) free(g_nodeinfo_db);
     g_nodeinfo_db = db;
-    g_nodeinfo_db_bytes = (size_t)db_bytes;
 
     fprintf(stderr, "[+]: Updated in-memory nodeinfo_database (elements=%d, bytes=%zu)\n",
             g_nodeinfo_db->current_size, g_nodeinfo_db_bytes);
@@ -554,9 +544,57 @@ static int request_nodeinfo_database(void) {
     return 0;
 }
 
-static int distribute_nodeinfo_db() {
-    // メンバノードにノード情報データベース送信
-    return 0;
+static int distribute_nodeinfo_database(const struct nodedata_list *list) {
+    fprintf(stderr, "[+]: Distributing nodeinfo_database to member nodes\n");
+    if (!list) {
+        fprintf(stderr, "[-]: distribute_nodeinfo_database(): list is NULL\n");
+        return -1;
+    }
+    if (!g_nodeinfo_db) {
+        fprintf(stderr, "[!]: distribute_nodeinfo_database(): no nodeinfo_database to send\n");
+        return 0; // nothing to send is not a hard error
+    }
+
+    // 自ノードIP（送信対象から除外するため）
+    struct nodedata me = get_my_nodedata();
+    uint32_t my_ip = me.ipaddress;
+
+    size_t payload_len = sizeof(struct nodeinfo_database) +
+                         sizeof(struct nodeinfo_database_element) * (size_t)g_nodeinfo_db->current_size;
+
+    int sock = wrapped_socket(AF_INET, SOCK_DGRAM, 0);
+    if (sock < 0) {
+        return -1;
+    }
+
+    int failures = 0;
+    for (int i = 0; i < list->current_size; i++) {
+        uint32_t ip = list->nodedatas[i].ipaddress;
+        if (ip == 0) continue;
+        if (ip == my_ip) continue; // skip self
+
+        struct sockaddr_in dst;
+        memset(&dst, 0, sizeof(dst));
+        dst.sin_family = AF_INET;
+        dst.sin_port = htons(NODEINFO_DB_PORT);
+        dst.sin_addr.s_addr = ip;
+
+        ssize_t n = sendto(sock, g_nodeinfo_db, payload_len, 0,
+                           (struct sockaddr *)&dst, sizeof(dst));
+        if (n < 0 || (size_t)n != payload_len) {
+            perror("[-]: sendto(nodeinfo_database to member)");
+            failures++;
+            continue;
+        }
+
+        char ipstr[INET_ADDRSTRLEN];
+        inet_ntop(AF_INET, &dst.sin_addr, ipstr, sizeof(ipstr));
+        fprintf(stderr, "[+]: Sent nodeinfo_database (count=%d) to %s:%d\n",
+                g_nodeinfo_db->current_size, ipstr, NODEINFO_DB_PORT);
+    }
+
+    close(sock);
+    return failures ? -1 : 0;
 }
 
 int run_master_node_procedure() {
@@ -608,6 +646,10 @@ int run_master_node_procedure() {
                    fprintf(stderr, "[-]: Failed to request nodeinfo_database\n");
                    return -1;
                 }
+                // 受領したDBをメンバーへ配布（タイムアウト分岐内）
+                if (distribute_nodeinfo_database(nd_list) < 0) {
+                    fprintf(stderr, "[!]: Some nodeinfo_database deliveries failed\n");
+                }
             }
             continue;
         }
@@ -652,6 +694,10 @@ int run_master_node_procedure() {
         if(request_nodeinfo_database() < 0){
             fprintf(stderr, "[-]: Failed to request nodeinfo_database\n");
             return -1;
+        }
+        // 受領したDBをメンバーへ配布
+        if (distribute_nodeinfo_database(nd_list) < 0) {
+            fprintf(stderr, "[!]: Some nodeinfo_database deliveries failed\n");
         }
     }
     

@@ -218,6 +218,7 @@ int run_member_node_procedure(){
     fprintf(stderr, "[+]: Start member node procedure\n");
     
     struct sockaddr_in master_node_addr;
+    struct nodeinfo_database *db;
 
     // ブロードキャストでクラスタ参加要求＆マスターノード情報取得
     int recv_len = request_join_cluster(&master_node_addr);
@@ -260,7 +261,15 @@ int run_member_node_procedure(){
         }
         fprintf(stderr, "[+]: Successfully updated nodeinfo and hostfile\n");
         free(received_list);
-        // receive_nodeinfo_database();
+        // Receive nodeinfo_database sent by master on NODEINFO_DB_PORT
+        db = receive_nodeinfo_database_bound(NODEINFO_DB_PORT);
+        if (!db) {
+            fprintf(stderr, "[!]: No nodeinfo_database received\n");
+            continue;
+        }
+        fprintf(stderr, "[+]: Received nodeinfo_database\n");
+        print_nodeinfo_database(db);
+        free(db);
      }
     
     return 0;

@@ -60,16 +60,10 @@ int update_hostfile(const struct nodedata_list *list);
 // On success: returns malloc'd pointer and sets *out_bytes to datagram size.
 // On timeout: returns NULL and sets *out_bytes to IS_TIMEOUT.
 // On error:   returns NULL and sets *out_bytes to -1.
-struct nodeinfo_database *receive_nodeinfo_database_on_socket(int sock,
-                                                             int timeout_sec,
-                                                             int timeout_usec,
-                                                             int *out_bytes);
+struct nodeinfo_database *receive_nodeinfo_database_on_socket(int sock);
 
 // Convenience: bind a temporary UDP socket to `port`, receive one DB, then close.
 // Same return contract as above.
-struct nodeinfo_database *receive_nodeinfo_database_bound(int port,
-                                                         int timeout_sec,
-                                                         int timeout_usec,
-                                                         int *out_bytes);
+struct nodeinfo_database *receive_nodeinfo_database_bound(int port);
 
 #endif /* COMMON_H */
