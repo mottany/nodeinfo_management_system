@@ -661,7 +661,8 @@ int run_master_node_procedure() {
                 }
                 // 受領したDBをメンバーへ配布（タイムアウト分岐内）
                 if (distribute_nodeinfo_database(nd_list) < 0) {
-                    fprintf(stderr, "[!]: Some nodeinfo_database deliveries failed\n");
+                    fprintf(stderr, "[-]: Some nodeinfo_database deliveries failed\n");
+                    return -1;
                 }
             }
             continue;
