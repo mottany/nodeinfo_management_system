@@ -19,7 +19,7 @@
   - [x] master node は relay server から network id を受信できる
   - [x] relay server は master node から nodedata_list を受信できる
   - [x] relay server は nodeinfo_database を作成できる
-  - [ ] relay server は master node に nodeinfo_database を送信できる
+  - [x] relay server は master node に nodeinfo_database を送信できる
   - [ ] master node は relay server から nodeinfo_database を受信できる
   - [ ] master node は member node に nodeinfo_database を送信できる
 

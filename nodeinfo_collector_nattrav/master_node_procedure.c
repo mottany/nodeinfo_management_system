@@ -709,9 +709,9 @@ int run_master_node_procedure() {
             fprintf(stderr, "[-]: Failed to request nodeinfo_database\n");
             return -1;
         }
-        // 受領したDBをメンバーへ配布
         if (distribute_nodeinfo_database(nd_list) < 0) {
-            fprintf(stderr, "[!]: Some nodeinfo_database deliveries failed\n");
+            fprintf(stderr, "[-]: Some nodeinfo_database deliveries failed\n");
+            return -1;
         }
     }
     
