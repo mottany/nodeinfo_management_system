@@ -17,10 +17,12 @@ static socklen_t g_last_client_len = 0;
 int network_id = 1;
 
 int accept_request() {
+    fprintf(stderr, "[+]: Waiting for control request\n");
+    
     if (!g_ctrl_inited) {
         g_ctrl_sock = socket(AF_INET, SOCK_DGRAM, 0);
         if (g_ctrl_sock < 0) {
-            perror("[-]: socket(accept_join_request)");
+            perror("[-]: socket(accept_request)");
             return -1;
         }
         struct sockaddr_in addr;
@@ -29,7 +31,7 @@ int accept_request() {
         addr.sin_addr.s_addr = htonl(INADDR_ANY);
         addr.sin_port = htons(CTRL_MSG_PORT);
         if (bind(g_ctrl_sock, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
-            perror("[-]: bind(accept_join_request)");
+            perror("[-]: bind(accept_request)");
             close(g_ctrl_sock);
             g_ctrl_sock = -1;
             return -1;
@@ -43,7 +45,7 @@ int accept_request() {
     socklen_t clen = sizeof(client);
     ssize_t r = recvfrom(g_ctrl_sock, buf, sizeof(buf) - 1, 0, (struct sockaddr *)&client, &clen);
     if (r < 0) {
-        perror("[-]: recvfrom(accept_join_request)");
+        perror("[-]: recvfrom(accept_request)");
         return -1;
     }
     buf[r] = '\0';
@@ -54,7 +56,7 @@ int accept_request() {
     if (strcmp(buf, HELLO_RELAY_SERVER_MSG) == 0) {
         uint32_t nid_n = htonl((uint32_t)network_id);
         if (sendto(g_ctrl_sock, &nid_n, sizeof(nid_n), 0, (struct sockaddr *)&client, clen) < 0) {
-            perror("[-]: sendto(accept_join_request)");
+            perror("[-]: sendto(accept_request)");
             return -1;
         }
         fprintf(stderr, "[+]: HELLO from %s:%d -> assigned network_id=%d\n",
