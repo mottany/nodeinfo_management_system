@@ -364,6 +364,24 @@ static int send_nodedata_list_to_members(const struct nodedata_list *list) {
             continue;
         }
 
+        // Wait for ACK from member: READY_RECV_NODEDATA_LIST_MSG
+        char ack[128];
+        struct sockaddr_in from;
+        socklen_t fromlen = sizeof(from);
+        wrapped_set_recv_timeout(sock, 1, 0);
+        int ar = wrapped_recvfrom(sock, ack, sizeof(ack) - 1, 0, (struct sockaddr *)&from, &fromlen);
+        if (ar <= 0) {
+            fprintf(stderr, "[!]: No ACK from member for nodedata_list control; skip payload\n");
+            failures++;
+            continue;
+        }
+        ack[ar] = '\0';
+        if (strcmp(ack, READY_RECV_NODEDATA_LIST_MSG) != 0) {
+            fprintf(stderr, "[-]: Unexpected ACK for nodedata_list: '%s'\n", ack);
+            failures++;
+            continue;
+        }
+
         // 2) Send payload to NODEDATA_LIST_PORT
         dst.sin_port = htons(NODEDATA_LIST_PORT);
         n = sendto(sock, list, payload_len, 0,
@@ -597,6 +615,24 @@ static int distribute_nodeinfo_database(const struct nodedata_list *list) {
                            (struct sockaddr *)&dst, sizeof(dst));
         if (n < 0 || (size_t)n != strlen(READY_SEND_DB_MSG)) {
             perror("[-]: sendto(control READY_SEND_DB)");
+            failures++;
+            continue;
+        }
+
+        // Wait for ACK from member: READY_RECV_DB_MSG
+        char ack2[128];
+        struct sockaddr_in from2;
+        socklen_t from2len = sizeof(from2);
+        wrapped_set_recv_timeout(sock, 1, 0);
+        int ar2 = wrapped_recvfrom(sock, ack2, sizeof(ack2) - 1, 0, (struct sockaddr *)&from2, &from2len);
+        if (ar2 <= 0) {
+            fprintf(stderr, "[!]: No ACK from member for DB control; skip payload\n");
+            failures++;
+            continue;
+        }
+        ack2[ar2] = '\0';
+        if (strcmp(ack2, READY_RECV_DB_MSG) != 0) {
+            fprintf(stderr, "[-]: Unexpected ACK for DB: '%s'\n", ack2);
             failures++;
             continue;
         }

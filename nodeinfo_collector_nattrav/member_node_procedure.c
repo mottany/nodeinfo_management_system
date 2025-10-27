@@ -179,9 +179,15 @@ static int identify_data_type_from_master() {
     int dtype = 0;
     if (strcmp(buf, READY_SEND_NODEDATA_LIST_MSG) == 0) {
         dtype = NODEDATA_LIST;
+        // ACK to master so it can safely send payload
+        const char *ack = READY_RECV_NODEDATA_LIST_MSG;
+        sendto(sock, ack, strlen(ack), 0, (struct sockaddr *)&from, fromlen);
         fprintf(stderr, "[+]: Identified data type: NODEDATA_LIST\n");
     } else if (strcmp(buf, READY_SEND_DB_MSG) == 0) {
         dtype = NODEINFO_DATABASE;
+        // ACK to master so it can safely send payload
+        const char *ack = READY_RECV_DB_MSG;
+        sendto(sock, ack, strlen(ack), 0, (struct sockaddr *)&from, fromlen);
         fprintf(stderr, "[+]: Identified data type: NODEINFO_DATABASE\n");
     } else {
         fprintf(stderr, "[-]: Unknown control message from master: %s\n", buf);
