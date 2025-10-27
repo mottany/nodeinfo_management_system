@@ -12,7 +12,7 @@
   - [x] master node は member node に nodedata_list を送信できる
   - [x] 各node は nodeinfo と hostfile を作成/更新できる
 
-- [ ] ネットワークを跨いだ処理
+- [x] ネットワークを跨いだ処理
   - [x] master node は relay server にクラスタ参加要求できる
   - [x] relay server は master node の要求を受信できる
   - [x] relay server は master node に network id を送信できる
@@ -20,8 +20,8 @@
   - [x] relay server は master node から nodedata_list を受信できる
   - [x] relay server は nodeinfo_database を作成できる
   - [x] relay server は master node に nodeinfo_database を送信できる
-  - [ ] master node は relay server から nodeinfo_database を受信できる
-  - [ ] master node は member node に nodeinfo_database を送信できる
+  - [x] master node は relay server から nodeinfo_database を受信できる
+  - [x] master node は member node に nodeinfo_database を送信できる
 
 - [ ] ノード脱退処理
   - [ ] member node は master node に脱退要求できる
