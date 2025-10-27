@@ -356,35 +356,43 @@ static int send_nodedata_list_to_members(const struct nodedata_list *list) {
         dst.sin_port = htons(CTRL_MSG_PORT);
         dst.sin_addr.s_addr = ip;
 
-        ssize_t n = sendto(sock, READY_SEND_NODEDATA_LIST_MSG, strlen(READY_SEND_NODEDATA_LIST_MSG), 0,
-                           (struct sockaddr *)&dst, sizeof(dst));
-        if (n < 0 || (size_t)n != strlen(READY_SEND_NODEDATA_LIST_MSG)) {
-            perror("[-]: sendto(control READY_SEND_NODEDATA_LIST)");
+        int ack_ok = 0;
+        for (int attempt = 0; attempt < 3 && !ack_ok; attempt++) {
+            ssize_t n = sendto(sock, READY_SEND_NODEDATA_LIST_MSG, strlen(READY_SEND_NODEDATA_LIST_MSG), 0,
+                               (struct sockaddr *)&dst, sizeof(dst));
+            if (n < 0 || (size_t)n != strlen(READY_SEND_NODEDATA_LIST_MSG)) {
+                perror("[-]: sendto(control READY_SEND_NODEDATA_LIST)");
+                break;
+            }
+
+            // Wait for ACK from the same member: READY_RECV_NODEDATA_LIST_MSG
+            char ack[128];
+            struct sockaddr_in from;
+            socklen_t fromlen = sizeof(from);
+            wrapped_set_recv_timeout(sock, 1, 0);
+            int ar = wrapped_recvfrom(sock, ack, sizeof(ack) - 1, 0, (struct sockaddr *)&from, &fromlen);
+            if (ar <= 0) {
+                continue; // retry send
+            }
+            ack[ar] = '\0';
+            if (from.sin_addr.s_addr != ip || strcmp(ack, READY_RECV_NODEDATA_LIST_MSG) != 0) {
+                // not our target or unexpected content, retry
+                continue;
+            }
+            ack_ok = 1;
+        }
+        if (!ack_ok) {
+            fprintf(stderr, "[!]: No ACK from member %u for nodedata_list control; skip payload\n", (unsigned)ip);
             failures++;
             continue;
         }
 
-        // Wait for ACK from member: READY_RECV_NODEDATA_LIST_MSG
-        char ack[128];
-        struct sockaddr_in from;
-        socklen_t fromlen = sizeof(from);
-        wrapped_set_recv_timeout(sock, 1, 0);
-        int ar = wrapped_recvfrom(sock, ack, sizeof(ack) - 1, 0, (struct sockaddr *)&from, &fromlen);
-        if (ar <= 0) {
-            fprintf(stderr, "[!]: No ACK from member for nodedata_list control; skip payload\n");
-            failures++;
-            continue;
-        }
-        ack[ar] = '\0';
-        if (strcmp(ack, READY_RECV_NODEDATA_LIST_MSG) != 0) {
-            fprintf(stderr, "[-]: Unexpected ACK for nodedata_list: '%s'\n", ack);
-            failures++;
-            continue;
-        }
+        // Small delay to allow member to bind data port
+        usleep(100000);
 
         // 2) Send payload to NODEDATA_LIST_PORT
         dst.sin_port = htons(NODEDATA_LIST_PORT);
-        n = sendto(sock, list, payload_len, 0,
+    ssize_t n = sendto(sock, list, payload_len, 0,
                    (struct sockaddr *)&dst, sizeof(dst));
         if (n < 0 || (size_t)n != payload_len) {
             perror("[-]: sendto(nodedata_list)");
@@ -611,35 +619,42 @@ static int distribute_nodeinfo_database(const struct nodedata_list *list) {
         dst.sin_addr.s_addr = ip;
 
 
-        ssize_t n = sendto(sock, READY_SEND_DB_MSG, strlen(READY_SEND_DB_MSG), 0,
-                           (struct sockaddr *)&dst, sizeof(dst));
-        if (n < 0 || (size_t)n != strlen(READY_SEND_DB_MSG)) {
-            perror("[-]: sendto(control READY_SEND_DB)");
+        int ack_ok2 = 0;
+        for (int attempt = 0; attempt < 3 && !ack_ok2; attempt++) {
+            ssize_t n = sendto(sock, READY_SEND_DB_MSG, strlen(READY_SEND_DB_MSG), 0,
+                               (struct sockaddr *)&dst, sizeof(dst));
+            if (n < 0 || (size_t)n != strlen(READY_SEND_DB_MSG)) {
+                perror("[-]: sendto(control READY_SEND_DB)");
+                break;
+            }
+
+            // Wait for ACK from member: READY_RECV_DB_MSG
+            char ack2[128];
+            struct sockaddr_in from2;
+            socklen_t from2len = sizeof(from2);
+            wrapped_set_recv_timeout(sock, 1, 0);
+            int ar2 = wrapped_recvfrom(sock, ack2, sizeof(ack2) - 1, 0, (struct sockaddr *)&from2, &from2len);
+            if (ar2 <= 0) {
+                continue; // retry
+            }
+            ack2[ar2] = '\0';
+            if (from2.sin_addr.s_addr != ip || strcmp(ack2, READY_RECV_DB_MSG) != 0) {
+                continue;
+            }
+            ack_ok2 = 1;
+        }
+        if (!ack_ok2) {
+            fprintf(stderr, "[!]: No ACK from member %u for DB control; skip payload\n", (unsigned)ip);
             failures++;
             continue;
         }
 
-        // Wait for ACK from member: READY_RECV_DB_MSG
-        char ack2[128];
-        struct sockaddr_in from2;
-        socklen_t from2len = sizeof(from2);
-        wrapped_set_recv_timeout(sock, 1, 0);
-        int ar2 = wrapped_recvfrom(sock, ack2, sizeof(ack2) - 1, 0, (struct sockaddr *)&from2, &from2len);
-        if (ar2 <= 0) {
-            fprintf(stderr, "[!]: No ACK from member for DB control; skip payload\n");
-            failures++;
-            continue;
-        }
-        ack2[ar2] = '\0';
-        if (strcmp(ack2, READY_RECV_DB_MSG) != 0) {
-            fprintf(stderr, "[-]: Unexpected ACK for DB: '%s'\n", ack2);
-            failures++;
-            continue;
-        }
+        // Small delay to allow member to bind DB port
+        usleep(100000);
 
         // 2) Send DB payload to DB port
         dst.sin_port = htons(NODEINFO_DB_PORT);
-        n = sendto(sock, g_nodeinfo_db, payload_len, 0,
+    ssize_t n = sendto(sock, g_nodeinfo_db, payload_len, 0,
                    (struct sockaddr *)&dst, sizeof(dst));
         if (n < 0 || (size_t)n != payload_len) {
             perror("[-]: sendto(nodeinfo_database to member)");
