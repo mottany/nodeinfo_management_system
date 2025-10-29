@@ -53,7 +53,7 @@ static int request_join_cluster(struct sockaddr_in *master_node_addr) {
     broadcast_addr.sin_addr.s_addr = htonl(INADDR_BROADCAST);
 
     // ブロードキャストメッセージ送信
-    if (wrapped_sendto(broadcast_sock, (void*)HELLO_CLUSTER_MSG, strlen(HELLO_CLUSTER_MSG), 0,
+    if (wrapped_sendto(broadcast_sock, (void*)HELLO_MASTER_MSG, strlen(HELLO_MASTER_MSG), 0,
                (struct sockaddr *)&broadcast_addr, sizeof(broadcast_addr)) < 0) {
         close(broadcast_sock);
         return -1;

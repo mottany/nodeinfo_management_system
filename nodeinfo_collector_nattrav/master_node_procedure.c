@@ -180,7 +180,7 @@ static int accept_member_request() {
     buf[r] = '\0';
 
     /* リクエスト別処理 */
-    if (strcmp(buf, HELLO_CLUSTER_MSG) == 0) {
+    if (strcmp(buf, HELLO_MASTER_MSG) == 0) {
         if (sendto(sock, WELCOME_NODE_MSG, strlen(WELCOME_NODE_MSG), 0,
                    (struct sockaddr *)&client_addr, client_len) < 0) {
             perror("[-]: Failed to send welcome message");
@@ -191,7 +191,7 @@ static int accept_member_request() {
                 inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
         close(sock);
         return JOIN_REQUEST_CODE;
-    } else if (strcmp(buf, BYE_CLUSTER_MSG) == 0) {
+    } else if (strcmp(buf, BYE_MASTER_MSG) == 0) {
         if (sendto(sock, BYE_NODE_MSG, strlen(BYE_NODE_MSG), 0,
                    (struct sockaddr *)&client_addr, client_len) < 0) {
             perror("[-]: Failed to send bye message");
