@@ -46,7 +46,7 @@ endif
 
 SRCS = main.c member_node_procedure.c master_node_procedure.c sock_wrapper_functions.c common.c
 OBJS = $(SRCS:.c=.o)
-TARGET = nodeinfo_collector_nattrav.bin
+TARGET = nodeinfo_collector.bin
 
 .PHONY: all clean android android-arm64 android-armv7 android-x86_64
 
