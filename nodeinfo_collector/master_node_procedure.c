@@ -756,9 +756,11 @@ int run_master_node_procedure() {
             return -1;
         }
         fprintf(stderr, "[+]: Successfully updated nodeinfo and hostfile\n");
-        if(request_nodeinfo_database() < 0){
-            fprintf(stderr, "[-]: Failed to request nodeinfo_database\n");
-            return -1;
+        if(nd_list->network_id > 0){
+            if(request_nodeinfo_database() < 0){
+                fprintf(stderr, "[-]: Failed to request nodeinfo_database\n");
+                return -1;
+            }
         }
         if (distribute_nodeinfo_database(nd_list) < 0) {
             fprintf(stderr, "[-]: Some nodeinfo_database deliveries failed\n");
