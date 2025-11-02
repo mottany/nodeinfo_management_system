@@ -534,9 +534,9 @@ static int distribute_nodedata_list(const struct nodedata_list *list) {
     return 0;
 }
 
-// Request nodeinfo_database from relay server and keep it in memory
-static int request_nodeinfo_database(void) {
-    fprintf(stderr, "[+]: Requesting nodeinfo_database from relay server\n");
+// Fetch nodeinfo_database from relay server and keep it in memory
+static int fetch_nodeinfo_database(void) {
+    fprintf(stderr, "[+]: Fetching nodeinfo_database from relay server\n");
 
     int sock = wrapped_socket(AF_INET, SOCK_DGRAM, 0);
     if (sock < 0) {
@@ -706,7 +706,7 @@ int run_master_node_procedure() {
         // メンバノードから一定時間リクエストがなかったら
         if(request_code == TIMEOUT_CODE){
             if(nd_list->network_id > 0){ 
-                if(request_nodeinfo_database() < 0){
+                if(fetch_nodeinfo_database() < 0){
                    fprintf(stderr, "[-]: Failed to request nodeinfo_database\n");
                    return -1;
                 }
@@ -757,7 +757,7 @@ int run_master_node_procedure() {
         }
         fprintf(stderr, "[+]: Successfully updated nodeinfo and hostfile\n");
         if(nd_list->network_id > 0){
-            if(request_nodeinfo_database() < 0){
+            if(fetch_nodeinfo_database() < 0){
                 fprintf(stderr, "[-]: Failed to request nodeinfo_database\n");
                 return -1;
             }
