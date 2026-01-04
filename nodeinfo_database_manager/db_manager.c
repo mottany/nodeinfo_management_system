@@ -9,6 +9,26 @@
 #include "db_types.h"
 #include "db_manager.h"
 
+static const char *format_ipv4_from_u32(uint32_t ipv4_net_order, char *buf, size_t buflen) {
+    if (!buf || buflen == 0) return "";
+    struct in_addr ia;
+    ia.s_addr = ipv4_net_order;
+    if (!inet_ntop(AF_INET, &ia, buf, buflen)) {
+        snprintf(buf, buflen, "<invalid ip>");
+    }
+    return buf;
+}
+
+static const char *format_username_from_userid(int userid, char *buf, size_t buflen) {
+    if (!buf || buflen == 0) return "";
+    if (userid < 0) {
+        snprintf(buf, buflen, "NotAndroid");
+    } else {
+        snprintf(buf, buflen, "u0_a%d", userid);
+    }
+    return buf;
+}
+
 // Internal DB state
 static struct nodeinfo_database *g_db = NULL;
 static int g_db_capacity = 0;
@@ -215,8 +235,16 @@ void print_nodeinfo_database(const struct nodeinfo_database *db) {
            db->current_size, db->max_size);
     for (int i = 0; i < db->current_size; i++) {
         struct nodeinfo_database_element *el = &db->elements[i];
-        printf("  Element %d: NetworkID=%d, IP=%d, UserID=%d, CPU Cores=%d, ControlPort=%d, MessagePort=%d\n",
-               i, el->network_id, el->ipaddress, el->userid, el->cpu_core_num, el->control_port_num, el->message_port_num);
+        char ipstr[INET_ADDRSTRLEN];
+        char uname[32];
+        printf("  Element %d: NetworkID=%d, IP=%s, User=%s, CPU Cores=%d, ControlPort=%d, MessagePort=%d\n",
+               i,
+               el->network_id,
+               format_ipv4_from_u32(el->ipaddress, ipstr, sizeof(ipstr)),
+               format_username_from_userid(el->userid, uname, sizeof(uname)),
+               el->cpu_core_num,
+               el->control_port_num,
+               el->message_port_num);
     }
     return;
 }

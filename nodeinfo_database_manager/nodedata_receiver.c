@@ -10,6 +10,26 @@
 #include "db_types.h"
 #include "nodedata_receiver.h"
 
+static const char *format_ipv4_from_i32(int ipv4_net_order, char *buf, size_t buflen) {
+    if (!buf || buflen == 0) return "";
+    struct in_addr ia;
+    ia.s_addr = (uint32_t)ipv4_net_order;
+    if (!inet_ntop(AF_INET, &ia, buf, buflen)) {
+        snprintf(buf, buflen, "<invalid ip>");
+    }
+    return buf;
+}
+
+static const char *format_username_from_userid(int userid, char *buf, size_t buflen) {
+    if (!buf || buflen == 0) return "";
+    if (userid < 0) {
+        snprintf(buf, buflen, "NotAndroid");
+    } else {
+        snprintf(buf, buflen, "u0_a%d", userid);
+    }
+    return buf;
+}
+
 struct nodedata_list *receive_nodedata_list(void) {
     static int sock = -1;
     static int inited = 0;
@@ -84,9 +104,14 @@ void print_nodedata_list(const struct nodedata_list *list) {
     printf("Nodedata List (current size: %d, max size: %d):\n",
            list->current_size, list->max_size);
     for (int i = 0; i < list->current_size; i++) {
-        struct nodedata *nd = &list->nodedatas[i];
-        printf("  Node %d: IP=%d, UserID=%d, CPU Cores=%d\n",
-               i, nd->ipaddress, nd->userid, nd->cpu_core_num);
+        const struct nodedata *nd = &list->nodedatas[i];
+        char ipstr[INET_ADDRSTRLEN];
+        char uname[32];
+        printf("  Node %d: IP=%s, User=%s, CPU Cores=%d\n",
+               i,
+               format_ipv4_from_i32(nd->ipaddress, ipstr, sizeof(ipstr)),
+               format_username_from_userid(nd->userid, uname, sizeof(uname)),
+               nd->cpu_core_num);
     }
     return;
 }
